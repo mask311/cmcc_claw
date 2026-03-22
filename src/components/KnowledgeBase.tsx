@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, storage, auth } from '../firebase';
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { auth } from '../firebase';
 import { FileText, Trash2, Upload, Loader2, Search, Plus, X, File, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
+import { translations } from '../translations';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -16,40 +15,41 @@ interface KBDocument {
   content: string;
   summary?: string;
   authorUid: string;
-  createdAt: any;
+  createdAt: string;
   fileUrl?: string;
   fileType: string;
   size: number;
 }
 
-export function KnowledgeBase() {
+export function KnowledgeBase({ language = '简体中文' }: { language?: string }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const t = translations[language]?.knowledge || translations['简体中文'].knowledge;
+
+  const fetchDocs = async () => {
+    try {
+      const response = await fetch('/api/kb/list');
+      if (!response.ok) throw new Error("Failed to fetch documents");
+      const data = await response.json();
+      
+      // Filter by current user if needed, but the backend currently returns all.
+      // For a real app, you'd want to filter on the server.
+      const userDocs = auth.currentUser 
+        ? data.filter((d: any) => d.authorUid === auth.currentUser?.uid)
+        : data;
+
+      setDocuments(userDocs.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(t.fail);
+    }
+  };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const q = query(
-      collection(db, 'knowledge_base'),
-      where('authorUid', '==', auth.currentUser.uid)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs: KBDocument[] = [];
-      snapshot.forEach((doc) => {
-        docs.push({ id: doc.id, ...doc.data() } as KBDocument);
-      });
-      setDocuments(docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
-    }, (err) => {
-      console.error("Firestore error:", err);
-      setError("无法加载知识库文档。请检查权限。");
-    });
-
-    return () => unsubscribe();
+    fetchDocs();
   }, []);
 
   const extractText = async (file: File): Promise<string> => {
@@ -67,7 +67,7 @@ export function KnowledgeBase() {
     } else if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
       return await file.text();
     } else {
-      throw new Error("目前仅支持 PDF、TXT 和 Markdown 文件。");
+      throw new Error(language === 'English' ? "Currently only PDF, TXT, and Markdown files are supported." : "目前仅支持 PDF、TXT 和 Markdown 文件。");
     }
   };
 
@@ -83,26 +83,26 @@ export function KnowledgeBase() {
         const file = files[i];
         const textContent = await extractText(file);
         
-        // 1. Upload to Storage
-        const storageRef = ref(storage, `knowledge_base/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        const downloadUrl = await getDownloadURL(storageRef);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
+        formData.append('content', textContent);
+        formData.append('summary', textContent.slice(0, 200) + (textContent.length > 200 ? '...' : ''));
+        formData.append('authorUid', auth.currentUser.uid);
+        formData.append('fileType', file.type);
+        formData.append('size', file.size.toString());
 
-        // 2. Add to Firestore
-        await addDoc(collection(db, 'knowledge_base'), {
-          name: file.name,
-          content: textContent,
-          authorUid: auth.currentUser.uid,
-          createdAt: serverTimestamp(),
-          fileUrl: downloadUrl,
-          fileType: file.type,
-          size: file.size,
-          summary: textContent.slice(0, 200) + (textContent.length > 200 ? '...' : '')
+        const response = await fetch('/api/kb/upload', {
+          method: 'POST',
+          body: formData,
         });
+
+        if (!response.ok) throw new Error("Upload failed");
       }
+      await fetchDocs();
     } catch (err: any) {
       console.error("Upload error:", err);
-      setError(err.message || "上传失败。");
+      setError(err.message || t.fail);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -110,20 +110,17 @@ export function KnowledgeBase() {
   };
 
   const handleDelete = async (docObj: KBDocument) => {
-    if (!window.confirm(`确定要删除文档 "${docObj.name}" 吗？`)) return;
+    if (!window.confirm(language === 'English' ? `Are you sure you want to delete "${docObj.name}"?` : `确定要删除文档 "${docObj.name}" 吗？`)) return;
 
     try {
-      // 1. Delete from Firestore
-      await deleteDoc(doc(db, 'knowledge_base', docObj.id));
-      
-      // 2. Delete from Storage if exists
-      if (docObj.fileUrl) {
-        const fileRef = ref(storage, docObj.fileUrl);
-        await deleteObject(fileRef).catch(e => console.warn("Storage delete failed:", e));
-      }
+      const response = await fetch(`/api/kb/delete/${docObj.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error("Delete failed");
+      await fetchDocs();
     } catch (err) {
       console.error("Delete error:", err);
-      setError("删除失败。");
+      setError(t.fail);
     }
   };
 
@@ -137,8 +134,8 @@ export function KnowledgeBase() {
       <div className="max-w-5xl mx-auto w-full space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-serif text-[var(--text-primary)]">知识库</h1>
-            <p className="text-[var(--text-secondary)] text-sm mt-1">上传文档，让 AI 学习你的专属知识。</p>
+            <h1 className="text-3xl font-serif text-[var(--text-primary)]">{t.title}</h1>
+            <p className="text-[var(--text-secondary)] text-sm mt-1">{language === 'English' ? "Upload documents to let AI learn your exclusive knowledge." : "上传文档，让 AI 学习你的专属知识。"}</p>
           </div>
           <button 
             onClick={() => fileInputRef.current?.click()}
@@ -146,7 +143,7 @@ export function KnowledgeBase() {
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
           >
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            <span>{isUploading ? '上传中...' : '上传文档'}</span>
+            <span>{isUploading ? t.uploading : t.upload}</span>
           </button>
           <input 
             type="file" 
@@ -170,7 +167,7 @@ export function KnowledgeBase() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input 
             type="text"
-            placeholder="搜索文档内容..."
+            placeholder={t.search}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-[var(--text-primary)]"
@@ -201,11 +198,11 @@ export function KnowledgeBase() {
                 </div>
                 <h3 className="font-medium text-[var(--text-primary)] truncate mb-1" title={doc.name}>{doc.name}</h3>
                 <p className="text-[var(--text-secondary)] text-xs line-clamp-3 mb-4 h-12">
-                  {doc.summary || '无摘要'}
+                  {doc.summary || (language === 'English' ? 'No summary' : '无摘要')}
                 </p>
                 <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] font-mono border-top border-[var(--border-color)] pt-3">
                   <span>{(doc.size / 1024).toFixed(1)} KB</span>
-                  <span>{doc.createdAt?.toDate ? doc.createdAt.toDate().toLocaleDateString() : '刚刚'}</span>
+                  <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
                 </div>
               </motion.div>
             ))}
@@ -214,7 +211,7 @@ export function KnowledgeBase() {
           {filteredDocs.length === 0 && !isUploading && (
             <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4 opacity-50">
               <File className="w-12 h-12 text-gray-400" />
-              <p className="text-[var(--text-secondary)]">暂无文档，点击右上角上传。</p>
+              <p className="text-[var(--text-secondary)]">{t.empty}</p>
             </div>
           )}
         </div>

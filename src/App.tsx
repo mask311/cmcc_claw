@@ -7,9 +7,11 @@ import { Cpu, Box, Share2, Zap, Clock, Settings, Plus, Trash2, Check, AlertCircl
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { translations } from './translations';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously, signOut, User } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import * as cronParser from 'cron-parser';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -49,6 +51,7 @@ interface ScheduledTask {
   name: string;
   schedule: string;
   status: 'pending' | 'running' | 'completed';
+  lastRun?: number;
 }
 
 interface UsageLog {
@@ -488,6 +491,9 @@ function SkillsView({ skills, setSkills, onNavigateToChat }: {
   const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
   const [githubUrl, setGithubUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
 
   const toggleSkill = (id: string) => {
     setSkills(skills.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -495,6 +501,18 @@ function SkillsView({ skills, setSkills, onNavigateToChat }: {
 
   const deleteSkill = (id: string) => {
     setSkills(skills.filter(s => s.id !== id));
+  };
+
+  const startEdit = (skill: Skill) => {
+    setEditingSkillId(skill.id);
+    setEditName(skill.name);
+    setEditDesc(skill.desc);
+  };
+
+  const saveEdit = () => {
+    if (!editingSkillId) return;
+    setSkills(skills.map(s => s.id === editingSkillId ? { ...s, name: editName, desc: editDesc } : s));
+    setEditingSkillId(null);
   };
 
   const handleGithubImport = async () => {
@@ -627,20 +645,63 @@ function SkillsView({ skills, setSkills, onNavigateToChat }: {
               </div>
               
               <div className="mb-4">
-                <h4 className="font-bold text-[var(--text-primary)] mb-1">{skill.name}</h4>
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed line-clamp-2">{skill.desc}</p>
+                {editingSkillId === skill.id ? (
+                  <div className="space-y-3">
+                    <input 
+                      type="text" 
+                      className="w-full bg-[var(--bg)] px-3 py-1.5 text-sm border border-blue-500 rounded-lg focus:outline-none text-[var(--text-primary)] font-bold"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      autoFocus
+                    />
+                    <textarea 
+                      className="w-full bg-[var(--bg)] px-3 py-1.5 text-xs border border-blue-500 rounded-lg focus:outline-none text-[var(--text-secondary)] leading-relaxed resize-none h-20"
+                      value={editDesc}
+                      onChange={e => setEditDesc(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={saveEdit}
+                        className="px-3 py-1 bg-blue-500 text-white text-[10px] font-bold rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        保存
+                      </button>
+                      <button 
+                        onClick={() => setEditingSkillId(null)}
+                        className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-[var(--text-secondary)] text-[10px] font-bold rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h4 className="font-bold text-[var(--text-primary)] mb-1">{skill.name}</h4>
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed line-clamp-2">{skill.desc}</p>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-[var(--border-color)]">
                 <span className="text-[10px] px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-500 font-medium">
                   {skill.isBuiltIn ? '内置技能' : '自定义技能'}
                 </span>
-                <button 
-                  onClick={() => deleteSkill(skill.id)}
-                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => startEdit(skill)}
+                    className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
+                    title="编辑技能"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => deleteSkill(skill.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                    title="删除技能"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -743,13 +804,6 @@ function Search({ className }: { className?: string }) {
   );
 }
 
-interface ScheduledTask {
-  id: string;
-  name: string;
-  schedule: string;
-  status: 'pending' | 'running' | 'completed';
-}
-
 function TasksView({ tasks, setTasks }: { tasks: ScheduledTask[], setTasks: React.Dispatch<React.SetStateAction<ScheduledTask[]>> }) {
   const [isAdding, setIsAdding] = useState(false);
   const [newTask, setNewTask] = useState({ name: '', schedule: '' });
@@ -757,13 +811,19 @@ function TasksView({ tasks, setTasks }: { tasks: ScheduledTask[], setTasks: Reac
   const addTask = () => {
     if (!newTask.name || !newTask.schedule) return;
     const id = Date.now().toString();
-    setTasks([...tasks, { ...newTask, id, status: 'pending' } as ScheduledTask]);
+    setTasks([...tasks, { ...newTask, id, status: 'pending', lastRun: 0 } as ScheduledTask]);
     setNewTask({ name: '', schedule: '' });
     setIsAdding(false);
   };
 
   const deleteTask = (id: string) => {
     setTasks(tasks.filter(t => t.id !== id));
+  };
+
+  const runTaskNow = (id: string) => {
+    setTasks(prev => prev.map(t => 
+      t.id === id ? { ...t, status: 'running' as const, lastRun: Date.now() } : t
+    ));
   };
 
   return (
@@ -833,6 +893,13 @@ function TasksView({ tasks, setTasks }: { tasks: ScheduledTask[], setTasks: Reac
                   )}>
                     {task.status}
                   </span>
+                  <button 
+                    onClick={() => runTaskNow(task.id)} 
+                    className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+                    title="立即运行"
+                  >
+                    <Zap className="w-4 h-4" />
+                  </button>
                   <button onClick={() => deleteTask(task.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -944,6 +1011,7 @@ function SettingsView({
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'latest' | 'available' | 'error'>('idle');
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const t = translations[language]?.settings || translations['简体中文'].settings;
 
   const handleCheckUpdate = async () => {
     // Check cooldown (prevent spamming)
@@ -998,20 +1066,20 @@ function SettingsView({
   };
 
   const themes = [
-    { id: 'light', name: '明亮', colors: 'bg-[#F2F0E9] border-[#E6E4DD]' },
-    { id: 'dark', name: '深色', colors: 'bg-[#1A1A1A] border-[#2D2D2D]' },
-    { id: 'solarized', name: 'Solarized', colors: 'bg-[#FDF6E3] border-[#EEE8D5]' },
-    { id: 'monokai', name: 'Monokai', colors: 'bg-[#272822] border-[#3E3D32]' },
-    { id: 'github-dark', name: 'GitHub Dark', colors: 'bg-[#0D1117] border-[#30363D]' },
+    { id: 'light', name: t.themes.light, colors: 'bg-[#F2F0E9] border-[#E6E4DD]' },
+    { id: 'dark', name: t.themes.dark, colors: 'bg-[#1A1A1A] border-[#2D2D2D]' },
+    { id: 'solarized', name: t.themes.solarized, colors: 'bg-[#FDF6E3] border-[#EEE8D5]' },
+    { id: 'monokai', name: t.themes.monokai, colors: 'bg-[#272822] border-[#3E3D32]' },
+    { id: 'github-dark', name: t.themes.githubDark, colors: 'bg-[#0D1117] border-[#30363D]' },
   ];
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-[var(--bg)] custom-scrollbar">
       <div className="max-w-2xl mx-auto">
-        <h2 className="text-3xl font-serif mb-8 text-[var(--text-primary)]">设置</h2>
+        <h2 className="text-3xl font-serif mb-8 text-[var(--text-primary)]">{t.title}</h2>
         <div className="space-y-6">
           <div className="bg-[var(--card-bg)] p-6 rounded-2xl border border-[var(--border-color)] shadow-sm">
-            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">外观主题</h3>
+            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">{t.appearance}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {themes.map(t => (
                 <button
@@ -1037,12 +1105,12 @@ function SettingsView({
           </div>
 
           <div className="bg-[var(--card-bg)] p-6 rounded-2xl border border-[var(--border-color)] shadow-sm">
-            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">通用设置</h3>
+            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">{t.general}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">语言</p>
-                  <p className="text-xs text-[var(--text-secondary)]">选择界面显示语言</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{t.language}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">{t.selectLanguage}</p>
                 </div>
                 <select 
                   value={language}
@@ -1051,19 +1119,18 @@ function SettingsView({
                 >
                   <option>English</option>
                   <option>简体中文</option>
-                  <option>日本語</option>
                 </select>
               </div>
             </div>
           </div>
 
           <div className="bg-[var(--card-bg)] p-6 rounded-2xl border border-[var(--border-color)] shadow-sm">
-            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">版本与更新</h3>
+            <h3 className="font-bold text-sm mb-4 text-[var(--text-primary)]">{t.version}</h3>
             
             <div className="flex items-center justify-between mb-6 pb-6 border-b border-[var(--border-color)]/50">
               <div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">国内镜像加速</p>
-                <p className="text-xs text-[var(--text-secondary)]">开启后使用 ghproxy 加速下载</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{t.mirror}</p>
+                <p className="text-xs text-[var(--text-secondary)]">{t.mirrorDesc}</p>
               </div>
               <button 
                 onClick={onMirrorToggle}
@@ -1081,9 +1148,9 @@ function SettingsView({
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">当前版本: v{version}</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{t.currentVersion}: v{version}</p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  {updateStatus === 'latest' ? "已是最新版本" : "检查 OpenClaw 官方更新"}
+                  {updateStatus === 'latest' ? t.latest : t.checkUpdate}
                 </p>
               </div>
               <button 
@@ -1105,19 +1172,19 @@ function SettingsView({
                 )}
               >
                 {isChecking ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                {updateStatus === 'latest' ? "最新" : updateStatus === 'available' ? "下载更新" : updateStatus === 'error' ? "手动检查" : "检查更新"}
+                {updateStatus === 'latest' ? t.latest : updateStatus === 'available' ? t.updateAvailable : updateStatus === 'error' ? t.error : t.checkUpdate}
               </button>
             </div>
             {updateStatus === 'error' && (
               <div className="mt-4 p-3 bg-red-500/5 rounded-xl border border-red-500/10">
                 <p className="text-[10px] text-red-500 leading-relaxed">
-                  {errorMessage || "检查更新失败。"} 由于 GitHub API 的匿名访问限制，建议您直接访问 GitHub 仓库查看。
+                  {errorMessage || t.error}
                 </p>
               </div>
             )}
             {updateStatus === 'available' && (
               <div className="mt-4 p-3 bg-orange-500/5 rounded-xl border border-orange-500/10">
-                <p className="text-xs text-orange-600 font-medium mb-1">发现新版本: v{latestVersion}</p>
+                <p className="text-xs text-orange-600 font-medium mb-1">{t.updateAvailable}: v{latestVersion}</p>
                 <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
                   检测到 OpenClaw 有新版本发布。请点击上方按钮前往 GitHub 下载最新源码或安装包。
                 </p>
@@ -1169,9 +1236,9 @@ export default function App() {
     const saved = localStorage.getItem('agent_settings');
     if (saved) return JSON.parse(saved);
     return {
-      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。',
+      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。你具备强大的文件分析能力，可以处理用户上传的文档、图片和代码。',
       style: '严谨专业',
-      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。'
+      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。对于用户提到的本地文件路径，请引导用户通过上传功能或知识库进行分析。'
     };
   });
 
@@ -1189,6 +1256,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : [
       { id: 'gemini-3-flash', name: 'Gemini 3 Flash', desc: '速度极快，适合日常对话', provider: 'Google', apiKey: '********', baseUrl: '', modelName: 'gemini-3-flash-preview', speed: 'Fast', power: 'Medium' },
       { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', desc: '推理能力强，适合复杂任务', provider: 'Google', apiKey: '********', baseUrl: '', modelName: 'gemini-3.1-pro-preview', speed: 'Normal', power: 'High' },
+      { id: 'gemini-3.1-lite', name: 'Gemini 3.1 Flash Lite', desc: '极低延迟，轻量级任务首选', provider: 'Google', apiKey: '********', baseUrl: '', modelName: 'gemini-3.1-flash-lite-preview', speed: 'Ultra Fast', power: 'Low' },
     ];
   });
   
@@ -1198,6 +1266,7 @@ export default function App() {
       { id: '1', name: 'Web Search', desc: 'Search the web for real-time information', enabled: true, isBuiltIn: true },
       { id: '2', name: 'Code Interpreter', desc: 'Execute Python code to solve complex problems', enabled: false, isBuiltIn: true },
       { id: '3', name: 'Image Generation', desc: 'Create images from text descriptions', enabled: true, isBuiltIn: true },
+      { id: '6', name: 'File Analysis', desc: 'Analyze uploaded files and documents', enabled: true, isBuiltIn: true },
       { id: '4', name: 'agent-mbti', desc: 'AI Agent personality diagnosis and configuration tool.', enabled: true },
       { id: '5', name: 'cloud-upload-backup', desc: 'Cloud file upload and backup tool. Upload local files to cloud storage.', enabled: false },
     ];
@@ -1241,21 +1310,22 @@ export default function App() {
     if (!user) return "";
     
     try {
-      const q = query(
-        collection(db, 'knowledge_base'),
-        where('authorUid', '==', user.uid),
-        limit(5)
-      );
+      const response = await fetch('/api/kb/list');
+      if (!response.ok) throw new Error("Failed to fetch knowledge base");
+      const data = await response.json();
       
-      const snapshot = await getDocs(q);
+      const userDocs = data.filter((d: any) => d.authorUid === user.uid);
       let context = "";
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const keywords = queryText.toLowerCase().split(/\s+/).filter(k => k.length > 1);
-        const matches = keywords.some(k => data.content.toLowerCase().includes(k) || data.name.toLowerCase().includes(k));
+      const keywords = queryText.toLowerCase().split(/\s+/).filter(k => k.length > 1);
+
+      userDocs.forEach((doc: any) => {
+        const matches = keywords.some(k => 
+          doc.content.toLowerCase().includes(k) || 
+          doc.name.toLowerCase().includes(k)
+        );
         
         if (matches) {
-          context += `\n\n--- Document: ${data.name} ---\n${data.content.slice(0, 2000)}\n`;
+          context += `\n\n--- Document: ${doc.name} ---\n${doc.content.slice(0, 2000)}\n`;
         }
       });
       
@@ -1420,7 +1490,8 @@ export default function App() {
           id: Date.now().toString(),
           name: name.trim(),
           schedule: schedule.trim(),
-          status: 'pending'
+          status: 'pending',
+          lastRun: 0
         };
         setTasks(prev => [...prev, newTask]);
       }
@@ -1457,6 +1528,63 @@ export default function App() {
     ));
   };
 
+  // Task Scheduler
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      
+      setTasks(prevTasks => {
+        let hasChanges = false;
+        const updatedTasks = prevTasks.map(task => {
+          if (task.status === 'running') return task;
+          
+          try {
+            const interval = (cronParser as any).parseExpression(task.schedule);
+            const nextRun = interval.next().getTime();
+            const prevRun = task.lastRun || 0;
+            
+            // If it's time to run and we haven't run it in this minute
+            if (now >= nextRun && (now - prevRun) > 60000) {
+              hasChanges = true;
+              
+              // Trigger task execution
+              console.log(`Executing task: ${task.name}`);
+              
+              // We can't easily call handleSendMessage here because of closures
+              // but we can update the status and let another effect handle it or just log it
+              // For now, let's just mark it as running and update lastRun
+              return { ...task, status: 'running' as const, lastRun: now };
+            }
+          } catch (e) {
+            // Not a valid cron expression, maybe it's a simple time?
+            // For now, we only support cron
+          }
+          return task;
+        });
+        
+        return hasChanges ? updatedTasks : prevTasks;
+      });
+    }, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle running tasks
+  useEffect(() => {
+    const runningTasks = tasks.filter(t => t.status === 'running');
+    if (runningTasks.length > 0) {
+      runningTasks.forEach(task => {
+        // Execute the task: Send a message to the AI
+        handleSendMessage(`[SYSTEM_TASK_EXECUTION] 正在执行定时任务: ${task.name}`);
+        
+        // Mark as completed (or pending if it's recurring)
+        setTasks(prev => prev.map(t => 
+          t.id === task.id ? { ...t, status: 'pending' } : t
+        ));
+      });
+    }
+  }, [tasks, handleSendMessage]);
+
   const renderContent = () => {
     switch (activeItem) {
       case 'new':
@@ -1465,15 +1593,16 @@ export default function App() {
             messages={messages} 
             onSendMessage={handleSendMessage} 
             isLoading={isLoading} 
-            title={history.find(c => c.id === currentChatId)?.title || '新对话'}
+            title={history.find(c => c.id === currentChatId)?.title || (language === 'English' ? 'New Chat' : '新对话')}
             onUpdateTitle={(title) => currentChatId && updateChatTitle(currentChatId, title)}
             models={models}
             selectedModelId={selectedModelId}
             onSelectModel={setSelectedModelId}
+            language={language}
           />
         );
       case 'knowledge':
-        return <KnowledgeBase />;
+        return <KnowledgeBase language={language} />;
       case 'history':
         return <HistoryView history={history} onLoadChat={loadChat} onDeleteChat={deleteChat} onUpdateTitle={updateChatTitle} />;
       case 'model':
@@ -1495,7 +1624,7 @@ export default function App() {
             onThemeChange={setTheme}
             language={language}
             onLanguageChange={setLanguage}
-            version="2026.3.13"
+            version="2026.3.22"
             useMirror={useMirror}
             onMirrorToggle={() => setUseMirror(!useMirror)}
           />
@@ -1534,6 +1663,7 @@ export default function App() {
         onDeleteChat={deleteChat}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        language={language}
       />
       
       <main className="flex-1 flex flex-col min-w-0">

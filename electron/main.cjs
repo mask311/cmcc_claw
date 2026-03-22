@@ -7,7 +7,6 @@ function createWindow() {
     width: 1200,
     height: 800,
     title: "CMCC_Claw AI Agent",
-    icon: path.join(__dirname, '../public/favicon.ico'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, ThinkingLevel } from "@google/genai";
 
 // Helper to get Gemini API Key from various sources
 const getGeminiApiKey = () => {
@@ -85,7 +85,11 @@ export async function chatWithAI(
   const style = agentSettings?.style ? `\nYour response style: ${agentSettings.style}` : "";
   const customInstructions = agentSettings?.customInstructions ? `\nAdditional instructions: ${agentSettings.customInstructions}` : "";
 
-  const systemInstruction = `You are CMCC_Claw, a high-performance AI agent for mobile terminals. You are precise, technical, and helpful. Use markdown for formatting.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
+  const systemInstruction = `You are CMCC_Claw, a high-performance cross-platform AI agent. You are precise, technical, and helpful. Use markdown for formatting.
+You have advanced file analysis capabilities. 
+- If a user provides a local file path (e.g., C:\\Users\\...), explain that you cannot access their local disk directly due to security sandboxing, but suggest they upload the file using the paperclip icon or add it to the Knowledge Base.
+- When a user uploads a file, its content (if text-based) or image data is provided directly in the message parts. You can analyze, summarize, and extract information from these provided files immediately.
+- Do not attempt to use "Code Interpreter" or "Python" to read local paths; instead, always work with the data provided in the chat context.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
 
   if (config.provider === 'Google') {
     const apiKey = config.apiKey === '********' ? defaultApiKey : config.apiKey;
@@ -97,28 +101,40 @@ export async function chatWithAI(
     
     const ai = new GoogleGenAI({ apiKey });
     try {
-      const formattedHistory = messages.slice(0, -1).map(m => ({
-        role: m.role,
-        parts: [
-          { text: m.content },
-          ...(m.attachments || []).map(a => ({
-            inlineData: {
-              data: a.data.split(',')[1] || a.data,
-              mimeType: a.type
+      const formattedHistory = messages.slice(0, -1).map(m => {
+        const parts: any[] = [{ text: m.content }];
+        if (m.attachments) {
+          m.attachments.forEach(a => {
+            if (a.data.startsWith('data:')) {
+              parts.push({
+                inlineData: {
+                  data: a.data.split(',')[1] || a.data,
+                  mimeType: a.type
+                }
+              });
+            } else {
+              // Text attachment
+              parts.push({ text: `\n\n[FILE: ${a.name}]\n${a.data}` });
             }
-          }))
-        ]
-      }));
+          });
+        }
+        return { role: m.role, parts };
+      });
       const lastMessage = messages[messages.length - 1];
       const lastMessageParts: any[] = [{ text: lastMessage.content }];
       if (lastMessage.attachments) {
         lastMessage.attachments.forEach(a => {
-          lastMessageParts.push({
-            inlineData: {
-              data: a.data.split(',')[1] || a.data,
-              mimeType: a.type
-            }
-          });
+          if (a.data.startsWith('data:')) {
+            lastMessageParts.push({
+              inlineData: {
+                data: a.data.split(',')[1] || a.data,
+                mimeType: a.type
+              }
+            });
+          } else {
+            // Text attachment
+            lastMessageParts.push({ text: `\n\n[FILE: ${a.name}]\n${a.data}` });
+          }
         });
       }
 
@@ -126,10 +142,16 @@ export async function chatWithAI(
       let modelId = config.modelName || "gemini-3-flash-preview";
       if (modelId === 'gemini-3-flash') modelId = 'gemini-3-flash-preview';
       if (modelId === 'gemini-3.1-pro') modelId = 'gemini-3.1-pro-preview';
+      if (modelId === 'gemini-2.0-flash') modelId = 'gemini-2.0-flash-exp';
 
+      const isGemini3 = modelId.includes('gemini-3');
+      
       const chat = ai.chats.create({
         model: modelId,
-        config: { systemInstruction },
+        config: { 
+          systemInstruction,
+          thinkingConfig: isGemini3 ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
+        },
         history: formattedHistory
       });
       const result: GenerateContentResponse = await chat.sendMessage({ 
@@ -171,16 +193,46 @@ export async function chatWithAI(
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'HTTP-Referer': 'https://ais.run.app', // For OpenRouter and other proxies
+          'X-Title': 'CMCC_Claw AI Agent',
         },
         body: JSON.stringify({
-          model: config.modelName,
+          model: config.modelName.trim(),
           messages: [
             { role: 'system', content: systemInstruction },
-            ...messages.map(m => ({
-              role: m.role === 'model' ? 'assistant' : 'user',
-              content: m.content
-            }))
+            ...messages.map(m => {
+              let content: any = m.content;
+              const attachments = m.attachments || [];
+              
+              const imageAttachments = attachments.filter(a => a.data.startsWith('data:image/'));
+              const textAttachments = attachments.filter(a => !a.data.startsWith('data:'));
+
+              if (imageAttachments.length > 0) {
+                const parts: any[] = [{ type: 'text', text: content }];
+                imageAttachments.forEach(a => {
+                  parts.push({
+                    type: 'image_url',
+                    image_url: { url: a.data }
+                  });
+                });
+                content = parts;
+              }
+
+              if (textAttachments.length > 0) {
+                const textContent = textAttachments.map(a => `\n\n[FILE: ${a.name}]\n${a.data}`).join('');
+                if (Array.isArray(content)) {
+                  content[0].text += textContent;
+                } else {
+                  content += textContent;
+                }
+              }
+
+              return {
+                role: m.role === 'model' ? 'assistant' : 'user',
+                content
+              };
+            })
           ]
         })
       });
@@ -189,20 +241,24 @@ export async function chatWithAI(
         let errorMessage = `API Error: ${response.status}`;
         try {
           const errorText = await response.text();
+          console.error(`${config.provider} Error Body:`, errorText);
           try {
             const errorData = JSON.parse(errorText);
             errorMessage = errorData.error?.message || errorData.message || errorMessage;
           } catch (e) {
-            if (errorText && errorText.length < 300) errorMessage = errorText;
+            if (errorText && errorText.length < 500) errorMessage = errorText;
           }
           
           if (response.status === 403) {
             errorMessage = `权限拒绝 (403): 请检查 API Key 是否正确，或者该 Key 是否有权访问模型 "${config.modelName}"。
 如果您使用的是中转站，请确认中转地址是否正确。
 当前请求地址: ${url}
-提示: 请确保您的账户有足够的余额，且该 API Key 已启用对该模型的访问权限。`;
+提示: 请确保您的账户有足够的余额，且该 API Key 已启用对该模型的访问权限。
+(注: 部分中转站可能需要特定的模型标识符，如 deepseek-chat 而非 DeepSeek-V3)`;
           } else if (response.status === 404) {
             errorMessage = `未找到路径 (404): 请检查代理地址 (Base URL) 是否正确。当前请求地址: ${url}`;
+          } else if (response.status === 401) {
+            errorMessage = `认证失败 (401): API Key 无效或已过期。`;
           }
         } catch (e) {
           // Fallback

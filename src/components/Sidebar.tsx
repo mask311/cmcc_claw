@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Settings, MessageSquare, Cpu, Box, Share2, Zap, Clock, ExternalLink, PanelLeftClose, PanelLeftOpen, Plus, ChevronDown, ChevronRight, BarChart3, Book, Trash2, UserCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { translations } from '../translations';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,21 +16,23 @@ interface SidebarProps {
   onDeleteChat?: (id: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  language: string;
 }
 
-const MENU_ITEMS = [
-  { id: 'new', name: '新对话', icon: <Plus className="w-4 h-4" /> },
-  { id: 'knowledge', name: '知识库', icon: <Book className="w-4 h-4" /> },
-  { id: 'history', name: '历史记录', icon: <Clock className="w-4 h-4" /> },
-  { id: 'model', name: '模型管理', icon: <Cpu className="w-4 h-4" /> },
-  { id: 'agent', name: '智能体配置', icon: <UserCircle className="w-4 h-4" /> },
-  { id: 'skills', name: '技能', icon: <Zap className="w-4 h-4" /> },
-  { id: 'tasks', name: '定时任务', icon: <Clock className="w-4 h-4" /> },
-  { id: 'usage', name: '用量统计', icon: <BarChart3 className="w-4 h-4" /> },
-];
-
-export function Sidebar({ activeItem, onSelectItem, recentHistory = [], onLoadChat, onDeleteChat, isCollapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ activeItem, onSelectItem, recentHistory = [], onLoadChat, onDeleteChat, isCollapsed, onToggleCollapse, language }: SidebarProps) {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
+  const t = translations[language]?.sidebar || translations['简体中文'].sidebar;
+
+  const MENU_ITEMS = [
+    { id: 'new', name: t.new, icon: <Plus className="w-4 h-4" /> },
+    { id: 'knowledge', name: t.knowledge, icon: <Book className="w-4 h-4" /> },
+    { id: 'history', name: t.history, icon: <Clock className="w-4 h-4" /> },
+    { id: 'model', name: t.model, icon: <Cpu className="w-4 h-4" /> },
+    { id: 'agent', name: t.agent, icon: <UserCircle className="w-4 h-4" /> },
+    { id: 'skills', name: t.skills, icon: <Zap className="w-4 h-4" /> },
+    { id: 'tasks', name: t.tasks, icon: <Clock className="w-4 h-4" /> },
+    { id: 'usage', name: t.usage, icon: <BarChart3 className="w-4 h-4" /> },
+  ];
 
   return (
     <div className={cn(
@@ -136,10 +139,10 @@ export function Sidebar({ activeItem, onSelectItem, recentHistory = [], onLoadCh
             activeItem === 'settings' ? "bg-[var(--active-bg)] font-medium text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5",
             isCollapsed && "justify-center px-0"
           )}
-          title={isCollapsed ? "设置" : undefined}
+          title={isCollapsed ? t.settings : undefined}
         >
           <Settings className="w-4 h-4" />
-          {!isCollapsed && <span>设置</span>}
+          {!isCollapsed && <span>{t.settings}</span>}
         </button>
       </div>
     </div>
