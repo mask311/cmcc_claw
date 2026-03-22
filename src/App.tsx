@@ -1442,6 +1442,8 @@ export default function App() {
       ));
     }
 
+    const isElectron = !!window.electronAPI?.isElectron;
+
     try {
       const selectedModel = models.find(m => m.id === selectedModelId) || models[0];
       const enabledSkills = skills.filter(s => s.enabled).map(s => ({ name: s.name, desc: s.desc }));
@@ -1459,7 +1461,7 @@ export default function App() {
         content: enhancedContent
       };
 
-      let aiResponse = await chatWithAI(messagesWithContext, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings);
+      let aiResponse = await chatWithAI(messagesWithContext, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings, isElectron);
       let { text: response, usage } = aiResponse;
       
       // Handle Electron file reading commands
@@ -1509,7 +1511,7 @@ export default function App() {
             };
             
             const messagesWithFile: Message[] = [...messagesWithContext, { role: 'model' as const, content: response, timestamp: Date.now() }, hiddenMessage];
-            aiResponse = await chatWithAI(messagesWithFile, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings);
+            aiResponse = await chatWithAI(messagesWithFile, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings, isElectron);
             response = aiResponse.text;
             usage = aiResponse.usage;
             iterations++;

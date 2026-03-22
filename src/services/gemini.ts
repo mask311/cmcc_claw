@@ -68,7 +68,8 @@ export async function chatWithAI(
   config: AIModelConfig,
   fileProtectionEnabled: boolean = true,
   enabledSkills: { name: string, desc: string }[] = [],
-  agentSettings?: AgentSettings
+  agentSettings?: AgentSettings,
+  isElectron: boolean = false
 ): Promise<AIResponse> {
   const protectionRule = fileProtectionEnabled 
     ? "\nCRITICAL SAFETY RULE: You are strictly FORBIDDEN from deleting, removing, or overwriting any files. If asked to do so, politely refuse and explain that File Protection Protocol is active."
@@ -85,14 +86,23 @@ export async function chatWithAI(
   const style = agentSettings?.style ? `\nYour response style: ${agentSettings.style}` : "";
   const customInstructions = agentSettings?.customInstructions ? `\nAdditional instructions: ${agentSettings.customInstructions}` : "";
 
-  const systemInstruction = `You are CMCC_Claw, a high-performance cross-platform AI agent. You are precise, technical, and helpful. Use markdown for formatting.
-You have advanced file analysis capabilities. 
-- If you are running in the desktop client (Electron), you CAN access local files. If a user provides a local file path (e.g., C:\\Users\\... or /Users/...), and you need to read its content to answer, you can trigger a file read by including \`[READ_FILE: path]\` or \`[READ_EXCEL: path]\` (for Excel/CSV) in your response.
-- You can also execute Python code for complex data analysis or visualization by including \`[RUN_PYTHON: code]\` in your response. The output will be returned to you in the next message.
-- If you are NOT in the desktop client (web version), explain that you cannot access their local disk directly, but suggest they upload the file using the paperclip icon.
-- When a user uploads a file via the UI, its content is provided directly in the message parts. You can analyze it immediately.
-- For Excel files, use \`[READ_EXCEL: path]\` to get a JSON representation of the data.
-- Do not attempt to use "Code Interpreter" or "Python" to read local paths; instead, use the provided \`[READ_FILE: ...]\` or \`[READ_EXCEL: ...]\` commands.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
+  const electronStatus = isElectron 
+    ? "ENVIRONMENT: Desktop Client (Electron). You HAVE direct access to the local file system. Use [READ_FILE: path], [READ_EXCEL: path], or [RUN_PYTHON: code] to interact with the user's machine."
+    : "ENVIRONMENT: Web Browser. You DO NOT have direct access to the local disk. Ask the user to upload files via the UI.";
+
+  const systemInstruction = `You are CMCC_Claw, a high-performance cross-platform AI agent.
+${electronStatus}
+
+### CAPABILITIES & TOOLS
+- **Local File Access (Desktop Only)**: If the user provides a path (e.g., "C:\\data.txt"), you MUST use \`[READ_FILE: path]\` or \`[READ_EXCEL: path]\` to read it. Do NOT apologize or say you cannot access it.
+- **Python Execution (Desktop Only)**: Use \`[RUN_PYTHON: code]\` for data analysis, math, or visualization.
+- **File Uploads**: If the user uploads a file, its content is provided in the message. Analyze it directly.
+
+### RULES
+1. If in Desktop Client, NEVER say "I cannot access your local files". Instead, use the appropriate tag.
+2. For Excel/CSV files, always prefer \`[READ_EXCEL: path]\`.
+3. Use markdown for formatting.
+4. Be precise, technical, and helpful.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
 
   if (config.provider === 'Google') {
     const apiKey = config.apiKey === '********' ? defaultApiKey : config.apiKey;

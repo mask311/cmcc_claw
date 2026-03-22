@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, MenuItem } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -22,6 +22,32 @@ function createWindow() {
     },
   });
 
+  // Add Context Menu
+  win.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add Copy if text is selected
+    if (params.selectionText) {
+      menu.append(new MenuItem({ label: '复制', role: 'copy' }));
+    }
+
+    // Add Cut if text is selected and editable
+    if (params.isEditable && params.selectionText) {
+      menu.append(new MenuItem({ label: '剪切', role: 'cut' }));
+    }
+
+    // Add Paste if editable
+    if (params.isEditable) {
+      menu.append(new MenuItem({ label: '粘贴', role: 'paste' }));
+    }
+
+    // Add Select All
+    menu.append(new MenuItem({ label: '全选', role: 'selectAll' }));
+
+    // Show the menu
+    menu.popup({ window: win, x: params.x, y: params.y });
+  });
+
   if (isDev) {
     win.loadURL('http://localhost:3000');
     // win.webContents.openDevTools();
@@ -33,7 +59,8 @@ function createWindow() {
 // IPC Handlers
 ipcMain.handle('read-file', async (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const normalizedPath = path.normalize(filePath);
+    const content = fs.readFileSync(normalizedPath, 'utf-8');
     return { success: true, content };
   } catch (error) {
     return { success: false, error: error.message };
@@ -45,7 +72,8 @@ ipcMain.handle('read-excel', async (event, filePath) => {
     if (!XLSX) {
       throw new Error('Excel parsing module (xlsx) is not installed. Please run "npm install xlsx" and rebuild the app.');
     }
-    const workbook = XLSX.readFile(filePath);
+    const normalizedPath = path.normalize(filePath);
+    const workbook = XLSX.readFile(normalizedPath);
     const sheetNames = workbook.SheetNames;
     const data = {};
     sheetNames.forEach(name => {
