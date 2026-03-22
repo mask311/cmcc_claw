@@ -122,6 +122,7 @@ interface ChatAreaProps {
   selectedModelId: string;
   onSelectModel: (id: string) => void;
   language?: string;
+  isElectron?: boolean;
 }
 
 export function ChatArea({ 
@@ -133,7 +134,8 @@ export function ChatArea({
   models,
   selectedModelId,
   onSelectModel,
-  language = '简体中文'
+  language = '简体中文',
+  isElectron = false
 }: ChatAreaProps) {
   const [input, setInput] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -253,6 +255,12 @@ export function ChatArea({
               onClick={() => setIsEditingTitle(true)}
             >
               <h3 className="font-serif text-lg truncate max-w-md text-[var(--text-primary)]">{title}</h3>
+              {isElectron && (
+                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold rounded-full border border-emerald-500/20 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  {language === 'English' ? 'Desktop' : '桌面模式'}
+                </span>
+              )}
               <Plus className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 rotate-45 transition-all" />
             </div>
           )}

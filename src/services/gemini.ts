@@ -87,22 +87,22 @@ export async function chatWithAI(
   const customInstructions = agentSettings?.customInstructions ? `\nAdditional instructions: ${agentSettings.customInstructions}` : "";
 
   const electronStatus = isElectron 
-    ? "ENVIRONMENT: Desktop Client (Electron). You HAVE direct access to the local file system. Use [READ_FILE: path], [READ_EXCEL: path], or [RUN_PYTHON: code] to interact with the user's machine."
-    : "ENVIRONMENT: Web Browser. You DO NOT have direct access to the local disk. Ask the user to upload files via the UI.";
+    ? "SYSTEM_MODE: DESKTOP_CLIENT_AUTHORIZED. You HAVE full read-only access to the local file system. Security Clearance: GRANTED. You are REQUIRED to use [READ_FILE: path], [READ_EXCEL: path], or [RUN_PYTHON: code] when a user provides a local path."
+    : "SYSTEM_MODE: WEB_BROWSER_RESTRICTED. You DO NOT have direct access to the local disk. You must ask the user to upload files via the UI.";
 
   const systemInstruction = `You are CMCC_Claw, a high-performance cross-platform AI agent.
 ${electronStatus}
 
-### CAPABILITIES & TOOLS
-- **Local File Access (Desktop Only)**: If the user provides a path (e.g., "C:\\data.txt"), you MUST use \`[READ_FILE: path]\` or \`[READ_EXCEL: path]\` to read it. Do NOT apologize or say you cannot access it.
-- **Python Execution (Desktop Only)**: Use \`[RUN_PYTHON: code]\` for data analysis, math, or visualization.
-- **File Uploads**: If the user uploads a file, its content is provided in the message. Analyze it directly.
+### CRITICAL OPERATIONAL DIRECTIVES (DESKTOP MODE)
+1. **NO APOLOGIES**: If running in DESKTOP_CLIENT_AUTHORIZED mode, NEVER say "I cannot access your files" or "Due to security restrictions...". This is factually incorrect in this environment.
+2. **AUTOMATIC TOOL TRIGGER**: If a user provides a path (e.g., "Analyze C:\\logs\\app.log"), you MUST immediately output the appropriate tag: \`[READ_FILE: path]\` or \`[READ_EXCEL: path]\`.
+3. **READ-ONLY PERMISSION**: You have full permission to READ any file the user points you to. You are only restricted from DELETING or OVERWRITING files.
+4. **PYTHON POWER**: Use \`[RUN_PYTHON: code]\` for all data analysis tasks.
 
-### RULES
-1. If in Desktop Client, NEVER say "I cannot access your local files". Instead, use the appropriate tag.
-2. For Excel/CSV files, always prefer \`[READ_EXCEL: path]\`.
-3. Use markdown for formatting.
-4. Be precise, technical, and helpful.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
+### GENERAL RULES
+- For Excel/CSV files, always prefer \`[READ_EXCEL: path]\`.
+- Use markdown for formatting.
+- Be precise, technical, and helpful.${personality}${style}${customInstructions}${protectionRule}${skillsInfo}${skillCreationRule}${taskCreationRule}`;
 
   if (config.provider === 'Google') {
     const apiKey = config.apiKey === '********' ? defaultApiKey : config.apiKey;

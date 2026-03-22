@@ -1243,6 +1243,18 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fileProtection, setFileProtection] = useState(true);
+  const [isElectron, setIsElectron] = useState(false);
+
+  useEffect(() => {
+    const checkElectron = !!window.electronAPI?.isElectron;
+    setIsElectron(checkElectron);
+    if (checkElectron) {
+      console.log("CMCC_Claw: Running in Desktop Mode (Electron). Local file access enabled.");
+    } else {
+      console.log("CMCC_Claw: Running in Web Mode. Local file access disabled.");
+    }
+  }, []);
+
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(() => {
     const saved = localStorage.getItem('agent_settings');
     if (saved) return JSON.parse(saved);
@@ -1441,8 +1453,6 @@ export default function App() {
         chat.id === currentChatId ? { ...chat, messages: newMessages, timestamp: Date.now() } : chat
       ));
     }
-
-    const isElectron = !!window.electronAPI?.isElectron;
 
     try {
       const selectedModel = models.find(m => m.id === selectedModelId) || models[0];
@@ -1670,6 +1680,7 @@ export default function App() {
             selectedModelId={selectedModelId}
             onSelectModel={setSelectedModelId}
             language={language}
+            isElectron={isElectron}
           />
         );
       case 'knowledge':
@@ -1711,6 +1722,7 @@ export default function App() {
             models={models}
             selectedModelId={selectedModelId}
             onSelectModel={setSelectedModelId}
+            isElectron={isElectron}
           />
         );
     }
