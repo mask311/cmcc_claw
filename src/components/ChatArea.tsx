@@ -17,15 +17,30 @@ interface ChatAreaProps {
   isLoading: boolean;
   title: string;
   onUpdateTitle: (title: string) => void;
+  models: any[];
+  selectedModelId: string;
+  onSelectModel: (id: string) => void;
 }
 
-export function ChatArea({ messages, onSendMessage, isLoading, title, onUpdateTitle }: ChatAreaProps) {
+export function ChatArea({ 
+  messages, 
+  onSendMessage, 
+  isLoading, 
+  title, 
+  onUpdateTitle,
+  models,
+  selectedModelId,
+  onSelectModel
+}: ChatAreaProps) {
   const [input, setInput] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showModelSelector, setShowModelSelector] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const selectedModel = models.find(m => m.id === selectedModelId) || models[0];
 
   useEffect(() => {
     setEditTitle(title);
@@ -107,9 +122,60 @@ export function ChatArea({ messages, onSendMessage, isLoading, title, onUpdateTi
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[var(--card-bg)]/50 px-3 py-1 rounded-full border border-[var(--border-color)] text-xs text-[var(--text-secondary)]">
-            <Bot className="w-3 h-3 text-blue-500" />
-            <span>当前对话对象: <span className="font-medium">Main</span></span>
+          <div className="relative">
+            <button 
+              onClick={() => setShowModelSelector(!showModelSelector)}
+              className="flex items-center gap-2 bg-[var(--card-bg)]/50 px-3 py-1.5 rounded-full border border-[var(--border-color)] text-xs text-[var(--text-secondary)] hover:bg-[var(--card-bg)] transition-colors"
+            >
+              <Bot className="w-3.5 h-3.5 text-blue-500" />
+              <span>当前模型: <span className="font-bold text-[var(--text-primary)]">{selectedModel?.name}</span></span>
+            </button>
+
+            <AnimatePresence>
+              {showModelSelector && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowModelSelector(false)} 
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    className="absolute right-0 mt-2 w-64 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-xl z-20 overflow-hidden"
+                  >
+                    <div className="p-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                      {models.map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            onSelectModel(m.id);
+                            setShowModelSelector(false);
+                          }}
+                          className={cn(
+                            "w-full flex flex-col items-start p-3 rounded-xl transition-colors text-left",
+                            selectedModelId === m.id 
+                              ? "bg-blue-500/10 border border-blue-500/20" 
+                              : "hover:bg-black/5 dark:hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex items-center justify-between w-full mb-1">
+                            <span className={cn(
+                              "text-sm font-bold",
+                              selectedModelId === m.id ? "text-blue-500" : "text-[var(--text-primary)]"
+                            )}>
+                              {m.name}
+                            </span>
+                            {selectedModelId === m.id && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                          </div>
+                          <span className="text-[10px] text-[var(--text-secondary)] line-clamp-1">{m.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
           <button className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
             <RefreshCw className="w-4 h-4 text-gray-400" />

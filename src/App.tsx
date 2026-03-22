@@ -262,12 +262,19 @@ function ModelManagementView({
   const addModel = () => {
     if (!newModel.name || !newModel.apiKey || !newModel.modelName) return;
     
+    const trimmedModel = {
+      ...newModel,
+      apiKey: newModel.apiKey.trim(),
+      baseUrl: newModel.baseUrl.trim(),
+      modelName: newModel.modelName.trim()
+    };
+
     if (editingId) {
-      setModels(models.map(m => m.id === editingId ? { ...newModel, id: editingId, speed: m.speed, power: m.power } as ModelConfig : m));
+      setModels(models.map(m => m.id === editingId ? { ...trimmedModel, id: editingId, speed: m.speed, power: m.power } as ModelConfig : m));
       setEditingId(null);
     } else {
-      const id = newModel.name.toLowerCase().replace(/\s+/g, '-');
-      setModels([...models, { ...newModel, id, speed: 'Custom', power: 'Unknown', desc: newModel.desc || `接入 ${newModel.provider} 模型` } as ModelConfig]);
+      const id = trimmedModel.name.toLowerCase().replace(/\s+/g, '-');
+      setModels([...models, { ...trimmedModel, id, speed: 'Custom', power: 'Unknown', desc: trimmedModel.desc || `接入 ${trimmedModel.provider} 模型` } as ModelConfig]);
     }
     
     setNewModel({ name: '', desc: '', provider: 'Google', apiKey: '', baseUrl: '', modelName: '' });
@@ -386,11 +393,20 @@ function ModelManagementView({
                 <label className="text-[10px] font-bold text-gray-400 uppercase">模型标识符 (Model ID)</label>
                 <input 
                   type="text" 
-                  placeholder="gpt-4o" 
+                  placeholder={
+                    newModel.provider === 'DeepSeek' ? 'deepseek-chat' : 
+                    newModel.provider === 'Anthropic' ? 'claude-3-5-sonnet-20240620' : 
+                    'gpt-4o'
+                  } 
                   className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={newModel.modelName}
                   onChange={e => setNewModel({...newModel, modelName: e.target.value})}
                 />
+                <p className="text-[10px] text-gray-400">
+                  {newModel.provider === 'DeepSeek' ? '提示: 官方模型通常为 deepseek-chat 或 deepseek-reasoner' : 
+                   newModel.provider === 'Google' ? '提示: 常用模型如 gemini-1.5-flash-latest' :
+                   '提示: 请确保模型名称与供应商文档一致'}
+                </p>
               </div>
             </div>
             <div className="flex gap-2 pt-2">
@@ -1251,7 +1267,13 @@ export default function App() {
   };
 
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [selectedModelId, setSelectedModelId] = useState('gemini-3-flash');
+  const [selectedModelId, setSelectedModelId] = useState(() => {
+    return localStorage.getItem('selected_model_id') || 'gemini-3-flash';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('selected_model_id', selectedModelId);
+  }, [selectedModelId]);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('app_theme') || 'light';
   });
@@ -1445,6 +1467,9 @@ export default function App() {
             isLoading={isLoading} 
             title={history.find(c => c.id === currentChatId)?.title || '新对话'}
             onUpdateTitle={(title) => currentChatId && updateChatTitle(currentChatId, title)}
+            models={models}
+            selectedModelId={selectedModelId}
+            onSelectModel={setSelectedModelId}
           />
         );
       case 'knowledge':
@@ -1483,6 +1508,9 @@ export default function App() {
             isLoading={isLoading} 
             title={history.find(c => c.id === currentChatId)?.title || '新对话'}
             onUpdateTitle={(title) => currentChatId && updateChatTitle(currentChatId, title)}
+            models={models}
+            selectedModelId={selectedModelId}
+            onSelectModel={setSelectedModelId}
           />
         );
     }
