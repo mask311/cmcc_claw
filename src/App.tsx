@@ -18,6 +18,7 @@ declare global {
     electronAPI?: {
       readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
       readExcel: (path: string) => Promise<{ success: boolean; data?: any; sheetNames?: string[]; error?: string }>;
+      runPython: (code: string) => Promise<{ success: boolean; output?: string; error?: string }>;
       isElectron: boolean;
     };
   }
@@ -1274,7 +1275,7 @@ export default function App() {
     const saved = localStorage.getItem('ai_skills');
     return saved ? JSON.parse(saved) : [
       { id: '1', name: 'Web Search', desc: 'Search the web for real-time information', enabled: true, isBuiltIn: true },
-      { id: '2', name: 'Code Interpreter', desc: 'Execute Python code to solve complex problems', enabled: false, isBuiltIn: true },
+      { id: '2', name: 'Code Interpreter', desc: 'Execute Python code to solve complex problems', enabled: true, isBuiltIn: true },
       { id: '3', name: 'Image Generation', desc: 'Create images from text descriptions', enabled: true, isBuiltIn: true },
       { id: '6', name: 'File Analysis', desc: 'Analyze uploaded files and documents', enabled: true, isBuiltIn: true },
       { id: '7', name: 'Excel Analysis', desc: 'Read and analyze local Excel/CSV files', enabled: true, isBuiltIn: true },
@@ -1467,13 +1468,22 @@ export default function App() {
         while (iterations < 3) { // Limit to 3 recursive reads to prevent loops
           const readFileMatch = response.match(/\[READ_FILE:\s*(.*?)\s*\]/);
           const readExcelMatch = response.match(/\[READ_EXCEL:\s*(.*?)\s*\]/);
+          const runPythonMatch = response.match(/\[RUN_PYTHON:\s*([\s\S]*?)\s*\]/);
           
-          if (readFileMatch || readExcelMatch) {
+          if (readFileMatch || readExcelMatch || runPythonMatch) {
             setIsLoading(true);
             let fileContent = "";
             let filePath = "";
             
-            if (readExcelMatch) {
+            if (runPythonMatch) {
+              const code = runPythonMatch[1].trim();
+              const result = await window.electronAPI.runPython(code);
+              if (result.success) {
+                fileContent = `[PYTHON EXECUTION OUTPUT]\n${result.output}`;
+              } else {
+                fileContent = `[PYTHON EXECUTION ERROR]\n${result.error}`;
+              }
+            } else if (readExcelMatch) {
               filePath = readExcelMatch[1].trim();
               const result = await window.electronAPI.readExcel(filePath);
               if (result.success) {

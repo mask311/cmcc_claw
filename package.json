@@ -22,8 +22,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json",
-      "node_modules/**/*"
+      "package.json"
     ],
     "asar": true,
     "win": {

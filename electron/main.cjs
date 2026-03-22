@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
 let XLSX;
 try {
   XLSX = require('xlsx');
@@ -55,6 +56,27 @@ ipcMain.handle('read-excel', async (event, filePath) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('run-python', async (event, code) => {
+  return new Promise((resolve) => {
+    const tempFile = path.join(app.getPath('temp'), `temp_script_${Date.now()}.py`);
+    fs.writeFileSync(tempFile, code);
+    
+    // Try 'python' then 'python3'
+    const command = process.platform === 'win32' ? `python "${tempFile}"` : `python3 "${tempFile}"`;
+    
+    exec(command, (error, stdout, stderr) => {
+      // Clean up temp file
+      try { fs.unlinkSync(tempFile); } catch (e) {}
+      
+      if (error) {
+        resolve({ success: false, error: stderr || error.message });
+      } else {
+        resolve({ success: true, output: stdout });
+      }
+    });
+  });
 });
 
 app.whenReady().then(() => {
