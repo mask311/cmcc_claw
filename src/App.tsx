@@ -184,6 +184,18 @@ function ModelView({
     setIsAdding(false);
   };
 
+  const deleteModel = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (models.length <= 1) {
+      return;
+    }
+    const newModels = models.filter(m => m.id !== id);
+    setModels(newModels);
+    if (selectedId === id) {
+      onSelect(newModels[0].id);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-[var(--bg)] custom-scrollbar">
       <div className="max-w-2xl mx-auto">
@@ -370,27 +382,37 @@ function ModelView({
 
             <div className="grid gap-4">
               {models.map(m => (
-                <button 
-                  key={m.id}
-                  onClick={() => onSelect(m.id)}
-                  className={cn(
-                    "w-full text-left p-6 rounded-2xl border transition-all relative group",
-                    selectedId === m.id ? "bg-[var(--card-bg)] border-blue-500 shadow-md ring-1 ring-blue-500" : "bg-[var(--card-bg)]/50 border-[var(--border-color)] hover:bg-[var(--card-bg)]"
+                <div key={m.id} className="relative group/card">
+                  <button 
+                    onClick={() => onSelect(m.id)}
+                    className={cn(
+                      "w-full text-left p-6 rounded-2xl border transition-all relative",
+                      selectedId === m.id ? "bg-[var(--card-bg)] border-blue-500 shadow-md ring-1 ring-blue-500" : "bg-[var(--card-bg)]/50 border-[var(--border-color)] hover:bg-[var(--card-bg)]"
+                    )}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-[var(--text-primary)]">{m.name}</h4>
+                        <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">{m.provider}</span>
+                      </div>
+                      <div className="flex gap-2 pr-8">
+                        <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full font-mono uppercase text-gray-500">{m.speed}</span>
+                        <span className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full font-mono uppercase">{m.power}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">{m.desc || `ID: ${m.modelName}`}</p>
+                    {selectedId === m.id && <Check className="absolute top-4 right-4 w-4 h-4 text-blue-500" />}
+                  </button>
+                  {m.id !== 'gemini-3-flash' && m.id !== 'gemini-3.1-pro' && (
+                    <button
+                      onClick={(e) => deleteModel(m.id, e)}
+                      className="absolute top-4 right-12 p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover/card:opacity-100 transition-all"
+                      title="删除模型"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-[var(--text-primary)]">{m.name}</h4>
-                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">{m.provider}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full font-mono uppercase text-gray-500">{m.speed}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full font-mono uppercase">{m.power}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[var(--text-secondary)]">{m.desc || `ID: ${m.modelName}`}</p>
-                  {selectedId === m.id && <Check className="absolute top-4 right-4 w-4 h-4 text-blue-500" />}
-                </button>
+                </div>
               ))}
             </div>
           </div>
