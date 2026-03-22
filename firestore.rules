@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required) - Unique user ID
+    //   - email: string (required) - User email address
+    //   - displayName: string (optional) - User display name
+    //   - photoURL: string (optional) - User profile photo URL
+    //   - role: string (optional, enum: admin, user) - User role
+    //
+    // Collection: knowledge_base
+    // Document ID: docId
+    // Fields:
+    //   - id: string (required) - Unique document ID
+    //   - name: string (required) - Document name
+    //   - content: string (required) - Full text content of the document
+    //   - summary: string (optional) - Brief summary of the document
+    //   - authorUid: string (required) - UID of the user who uploaded it
+    //   - createdAt: timestamp (required) - When the document was uploaded
+    //   - fileUrl: string (optional) - URL to the original file in Storage
+    //   - fileType: string (optional) - MIME type of the file
+    //   - size: number (optional) - File size in bytes
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "wwwmadongwww@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidKnowledgeBase(data) {
+      return data.keys().hasAll(['id', 'name', 'content', 'authorUid', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 256 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 1000000 &&
+             data.authorUid is string && data.authorUid == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /knowledge_base/{docId} {
+      allow read: if isAuthenticated(); // Allow all authenticated users to read knowledge base
+      allow create: if isAuthenticated() && isValidKnowledgeBase(request.resource.data);
+      allow update: if isDocOwner() && isValidKnowledgeBase(request.resource.data) && isAdmin(); // Only admin or owner can update
+      allow delete: if isDocOwner() || isAdmin();
+    }
+  }
+}

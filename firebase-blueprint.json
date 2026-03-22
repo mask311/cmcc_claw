@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User profile photo URL" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "User role" }
+      },
+      "required": ["uid", "email"]
+    },
+    "KnowledgeBase": {
+      "title": "KnowledgeBase",
+      "description": "Stored documents for the knowledge base",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique document ID" },
+        "name": { "type": "string", "description": "Document name" },
+        "content": { "type": "string", "description": "Full text content of the document" },
+        "summary": { "type": "string", "description": "Brief summary of the document" },
+        "authorUid": { "type": "string", "description": "UID of the user who uploaded it" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the document was uploaded" },
+        "fileUrl": { "type": "string", "description": "URL to the original file in Storage" },
+        "fileType": { "type": "string", "description": "MIME type of the file" },
+        "size": { "type": "number", "description": "File size in bytes" }
+      },
+      "required": ["id", "name", "content", "authorUid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/knowledge_base/{docId}": {
+      "schema": "KnowledgeBase",
+      "description": "Knowledge base documents"
+    }
+  }
+}

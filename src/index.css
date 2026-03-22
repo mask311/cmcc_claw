@@ -1,0 +1,121 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", serif;
+}
+
+@layer base {
+  :root {
+    --bg: #F2F0E9;
+    --sidebar-bg: #F2F0E9;
+    --active-bg: #E6E4DD;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --card-bg: #FFFFFF;
+    --border-color: rgba(0, 0, 0, 0.05);
+    --accent-color: #3B82F6;
+  }
+
+  [data-theme='dark'] {
+    --bg: #1A1A1A;
+    --sidebar-bg: #1A1A1A;
+    --active-bg: #2D2D2D;
+    --text-primary: #F2F0E9;
+    --text-secondary: #A0A0A0;
+    --card-bg: #262626;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --accent-color: #60A5FA;
+  }
+
+  [data-theme='solarized'] {
+    --bg: #FDF6E3;
+    --sidebar-bg: #EEE8D5;
+    --active-bg: #DCD6C3;
+    --text-primary: #586E75;
+    --text-secondary: #93A1A1;
+    --card-bg: #FDF6E3;
+    --border-color: rgba(0, 0, 0, 0.1);
+    --accent-color: #268BD2;
+  }
+
+  [data-theme='monokai'] {
+    --bg: #272822;
+    --sidebar-bg: #1E1F1C;
+    --active-bg: #3E3D32;
+    --text-primary: #F8F8F2;
+    --text-secondary: #75715E;
+    --card-bg: #272822;
+    --border-color: rgba(255, 255, 255, 0.1);
+    --accent-color: #A6E22E;
+  }
+
+  [data-theme='github-dark'] {
+    --bg: #0D1117;
+    --sidebar-bg: #161B22;
+    --active-bg: #21262D;
+    --text-primary: #C9D1D9;
+    --text-secondary: #8B949E;
+    --card-bg: #0D1117;
+    --border-color: #30363D;
+    --accent-color: #58A6FF;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+.pill-button {
+  @apply px-4 py-1.5 rounded-full border text-xs font-medium transition-all;
+  border-color: var(--border-color);
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.dark .pill-button:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.dark .sidebar-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-item.active {
+  background-color: var(--active-bg);
+}
+
+.floating-input {
+  @apply w-full max-w-3xl mx-auto rounded-full border shadow-sm px-6 py-3 flex items-center gap-3 transition-all;
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

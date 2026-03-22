@@ -1,0 +1,5 @@
+{
+  "name": "CMCC_Claw Web",
+  "description": "A high-performance web interface for CMCC_Claw mobile terminal AI agents, powered by Gemini.",
+  "requestFramePermissions": []
+}
