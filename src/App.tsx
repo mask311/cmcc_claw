@@ -13,6 +13,16 @@ import { onAuthStateChanged, signInAnonymously, signOut, User } from 'firebase/a
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import cronParser from 'cron-parser';
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+      readExcel: (path: string) => Promise<{ success: boolean; data?: any; sheetNames?: string[]; error?: string }>;
+      isElectron: boolean;
+    };
+  }
+}
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -1236,9 +1246,9 @@ export default function App() {
     const saved = localStorage.getItem('agent_settings');
     if (saved) return JSON.parse(saved);
     return {
-      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。你具备强大的文件分析能力，可以处理用户上传的文档、图片和代码。',
+      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。你具备强大的文件分析能力，可以处理用户上传的文档、图片和代码，并能直接读取和分析本地电脑上的 Excel/CSV 数据。',
       style: '严谨专业',
-      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。对于用户提到的本地文件路径，请引导用户通过上传功能或知识库进行分析。'
+      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。在桌面客户端运行时，如果你需要分析用户提到的本地文件（如 C:\\Users\\...），请直接使用 [READ_FILE: 路径] 或 [READ_EXCEL: 路径] 指令来获取内容。'
     };
   });
 
@@ -1267,6 +1277,7 @@ export default function App() {
       { id: '2', name: 'Code Interpreter', desc: 'Execute Python code to solve complex problems', enabled: false, isBuiltIn: true },
       { id: '3', name: 'Image Generation', desc: 'Create images from text descriptions', enabled: true, isBuiltIn: true },
       { id: '6', name: 'File Analysis', desc: 'Analyze uploaded files and documents', enabled: true, isBuiltIn: true },
+      { id: '7', name: 'Excel Analysis', desc: 'Read and analyze local Excel/CSV files', enabled: true, isBuiltIn: true },
       { id: '4', name: 'agent-mbti', desc: 'AI Agent personality diagnosis and configuration tool.', enabled: true },
       { id: '5', name: 'cloud-upload-backup', desc: 'Cloud file upload and backup tool. Upload local files to cloud storage.', enabled: false },
     ];
@@ -1447,9 +1458,57 @@ export default function App() {
         content: enhancedContent
       };
 
-      const aiResponse = await chatWithAI(messagesWithContext, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings);
-      const { text: response, usage } = aiResponse;
+      let aiResponse = await chatWithAI(messagesWithContext, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings);
+      let { text: response, usage } = aiResponse;
       
+      // Handle Electron file reading commands
+      if (window.electronAPI) {
+        let iterations = 0;
+        while (iterations < 3) { // Limit to 3 recursive reads to prevent loops
+          const readFileMatch = response.match(/\[READ_FILE:\s*(.*?)\s*\]/);
+          const readExcelMatch = response.match(/\[READ_EXCEL:\s*(.*?)\s*\]/);
+          
+          if (readFileMatch || readExcelMatch) {
+            setIsLoading(true);
+            let fileContent = "";
+            let filePath = "";
+            
+            if (readExcelMatch) {
+              filePath = readExcelMatch[1].trim();
+              const result = await window.electronAPI.readExcel(filePath);
+              if (result.success) {
+                fileContent = `[LOCAL EXCEL DATA: ${filePath}]\n${JSON.stringify(result.data, null, 2)}`;
+              } else {
+                fileContent = `[ERROR READING EXCEL: ${filePath}]\n${result.error}`;
+              }
+            } else if (readFileMatch) {
+              filePath = readFileMatch[1].trim();
+              const result = await window.electronAPI.readFile(filePath);
+              if (result.success) {
+                fileContent = `[LOCAL FILE CONTENT: ${filePath}]\n${result.content}`;
+              } else {
+                fileContent = `[ERROR READING FILE: ${filePath}]\n${result.error}`;
+              }
+            }
+
+            // Send file content back to AI
+            const hiddenMessage: Message = {
+              role: 'user' as const,
+              content: fileContent,
+              timestamp: Date.now()
+            };
+            
+            const messagesWithFile: Message[] = [...messagesWithContext, { role: 'model' as const, content: response, timestamp: Date.now() }, hiddenMessage];
+            aiResponse = await chatWithAI(messagesWithFile, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings);
+            response = aiResponse.text;
+            usage = aiResponse.usage;
+            iterations++;
+          } else {
+            break;
+          }
+        }
+      }
+
       // Log usage
       const tokens = usage?.totalTokens || Math.floor((content.length + response.length) * 0.75 + 100);
       const newLog: UsageLog = {
