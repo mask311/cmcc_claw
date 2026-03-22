@@ -11,7 +11,7 @@ import { translations } from './translations';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInAnonymously, signOut, User } from 'firebase/auth';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import * as cronParser from 'cron-parser';
+import cronParser from 'cron-parser';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
