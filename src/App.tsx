@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatArea } from './components/ChatArea';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { Message, chatWithAI, AIModelConfig, Attachment, AgentSettings } from './services/gemini';
-import { Cpu, Box, Share2, Zap, Clock, Settings, Plus, Trash2, Check, AlertCircle, MessageSquare, PanelLeftOpen, Loader2, LogIn, User as UserIcon, Book, Sparkles, UserCircle } from 'lucide-react';
+import { Cpu, Box, Share2, Zap, Clock, Settings, Plus, Trash2, Check, AlertCircle, MessageSquare, PanelLeftOpen, Loader2, LogIn, User as UserIcon, Book, Sparkles, UserCircle, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -150,45 +150,133 @@ function HistoryView({ history, onLoadChat, onDeleteChat, onUpdateTitle }: {
   );
 }
 
-function ModelView({ 
+function AgentConfigView({ 
+  agentSettings, 
+  onUpdateAgentSettings 
+}: { 
+  agentSettings: AgentSettings, 
+  onUpdateAgentSettings: (settings: AgentSettings) => void 
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto p-8 bg-[var(--bg)] custom-scrollbar">
+      <div className="max-w-2xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-[var(--text-primary)]">智能体配置</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">定义智能体的人格、回复风格和行为准则</p>
+        </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="bg-[var(--card-bg)] p-6 rounded-3xl border border-[var(--border-color)] shadow-sm space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-blue-500/10 rounded-xl">
+                <UserCircle className="w-5 h-5 text-blue-500" />
+              </div>
+              <h3 className="font-bold text-[var(--text-primary)]">人格设定</h3>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[var(--text-secondary)]">描述智能体的人格特征、背景故事或专业领域</label>
+              <textarea 
+                className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
+                placeholder="例如：你是一个资深的移动端开发专家，说话简洁明了，喜欢用技术术语，但对初学者非常耐心..."
+                value={agentSettings.personality}
+                onChange={e => onUpdateAgentSettings({...agentSettings, personality: e.target.value})}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 mb-2 pt-4">
+              <div className="p-2 bg-amber-500/10 rounded-xl">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+              </div>
+              <h3 className="font-bold text-[var(--text-primary)]">回复风格</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {['简洁明了', '幽默风趣', '严谨专业', '热情亲切', '极简主义', '富有创意'].map(style => (
+                <button
+                  key={style}
+                  onClick={() => onUpdateAgentSettings({...agentSettings, style})}
+                  className={cn(
+                    "px-4 py-3 rounded-2xl border text-sm transition-all text-left",
+                    agentSettings.style === style 
+                      ? "border-blue-500 bg-blue-500/5 text-blue-500 font-medium" 
+                      : "border-[var(--border-color)] hover:border-gray-400 text-[var(--text-secondary)]"
+                  )}
+                >
+                  {style}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2 pt-2">
+              <label className="text-xs font-medium text-[var(--text-secondary)]">自定义风格描述</label>
+              <input 
+                type="text"
+                className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="或输入自定义风格..."
+                value={agentSettings.style}
+                onChange={e => onUpdateAgentSettings({...agentSettings, style: e.target.value})}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 mb-2 pt-4">
+              <div className="p-2 bg-emerald-500/10 rounded-xl">
+                <Settings className="w-5 h-5 text-emerald-500" />
+              </div>
+              <h3 className="font-bold text-[var(--text-primary)]">额外指令</h3>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[var(--text-secondary)]">任何你希望 AI 始终遵循的特定规则</label>
+              <textarea 
+                className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-none"
+                placeholder="例如：始终使用中文回复；在代码块后附带简短解释..."
+                value={agentSettings.customInstructions}
+                onChange={e => onUpdateAgentSettings({...agentSettings, customInstructions: e.target.value})}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModelManagementView({ 
   models, 
   setModels, 
   selectedId, 
-  onSelect,
-  agentSettings,
-  onUpdateAgentSettings
+  onSelect 
 }: { 
   models: ModelConfig[], 
   setModels: React.Dispatch<React.SetStateAction<ModelConfig[]>>,
   selectedId: string,
-  onSelect: (id: string) => void,
-  agentSettings: AgentSettings,
-  onUpdateAgentSettings: (settings: AgentSettings) => void
+  onSelect: (id: string) => void
 }) {
-  const [activeTab, setActiveTab] = useState<'models' | 'agent'>('agent');
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newModel, setNewModel] = useState({ 
     name: '', 
     desc: '', 
-    provider: 'OpenAI', 
+    provider: 'Google', 
     apiKey: '', 
-    baseUrl: 'https://api.openai.com/v1', 
+    baseUrl: '', 
     modelName: '' 
   });
 
   const addModel = () => {
     if (!newModel.name || !newModel.apiKey || !newModel.modelName) return;
-    const id = newModel.name.toLowerCase().replace(/\s+/g, '-');
-    setModels([...models, { ...newModel, id, speed: 'Custom', power: 'Unknown', desc: newModel.desc || `接入 ${newModel.provider} 模型` } as ModelConfig]);
-    setNewModel({ name: '', desc: '', provider: 'OpenAI', apiKey: '', baseUrl: 'https://api.openai.com/v1', modelName: '' });
+    
+    if (editingId) {
+      setModels(models.map(m => m.id === editingId ? { ...newModel, id: editingId, speed: m.speed, power: m.power } as ModelConfig : m));
+      setEditingId(null);
+    } else {
+      const id = newModel.name.toLowerCase().replace(/\s+/g, '-');
+      setModels([...models, { ...newModel, id, speed: 'Custom', power: 'Unknown', desc: newModel.desc || `接入 ${newModel.provider} 模型` } as ModelConfig]);
+    }
+    
+    setNewModel({ name: '', desc: '', provider: 'Google', apiKey: '', baseUrl: '', modelName: '' });
     setIsAdding(false);
   };
 
   const deleteModel = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (models.length <= 1) {
-      return;
-    }
+    if (models.length <= 1) return;
     const newModels = models.filter(m => m.id !== id);
     setModels(newModels);
     if (selectedId === id) {
@@ -196,227 +284,179 @@ function ModelView({
     }
   };
 
+  const startEdit = (model: ModelConfig, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNewModel({
+      name: model.name,
+      desc: model.desc,
+      provider: model.provider,
+      apiKey: model.apiKey,
+      baseUrl: model.baseUrl,
+      modelName: model.modelName
+    });
+    setEditingId(model.id);
+    setIsAdding(true);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-[var(--bg)] custom-scrollbar">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 mb-8 border-b border-[var(--border-color)] pb-4">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)]">模型管理</h2>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">管理和配置您的 AI 模型接入</p>
+          </div>
           <button 
-            onClick={() => setActiveTab('agent')}
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-all relative",
-              activeTab === 'agent' ? "text-blue-500" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            )}
+            onClick={() => {
+              setEditingId(null);
+              setNewModel({ name: '', desc: '', provider: 'Google', apiKey: '', baseUrl: '', modelName: '' });
+              setIsAdding(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 transition-colors"
           >
-            智能体配置
-            {activeTab === 'agent' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
-          </button>
-          <button 
-            onClick={() => setActiveTab('models')}
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-all relative",
-              activeTab === 'models' ? "text-blue-500" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            )}
-          >
-            模型管理
-            {activeTab === 'models' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />}
+            <Plus className="w-4 h-4" />
+            增加模型
           </button>
         </div>
 
-        {activeTab === 'agent' ? (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="bg-[var(--card-bg)] p-6 rounded-3xl border border-[var(--border-color)] shadow-sm space-y-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-500/10 rounded-xl">
-                  <UserCircle className="w-5 h-5 text-blue-500" />
-                </div>
-                <h3 className="font-bold text-[var(--text-primary)]">人格设定</h3>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--text-secondary)]">描述智能体的人格特征、背景故事或专业领域</label>
-                <textarea 
-                  className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
-                  placeholder="例如：你是一个资深的移动端开发专家，说话简洁明了，喜欢用技术术语，但对初学者非常耐心..."
-                  value={agentSettings.personality}
-                  onChange={e => onUpdateAgentSettings({...agentSettings, personality: e.target.value})}
-                />
-              </div>
-
-              <div className="flex items-center gap-3 mb-2 pt-4">
-                <div className="p-2 bg-amber-500/10 rounded-xl">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
-                </div>
-                <h3 className="font-bold text-[var(--text-primary)]">回复风格</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {['简洁明了', '幽默风趣', '严谨专业', '热情亲切', '极简主义', '富有创意'].map(style => (
-                  <button
-                    key={style}
-                    onClick={() => onUpdateAgentSettings({...agentSettings, style})}
-                    className={cn(
-                      "px-4 py-3 rounded-2xl border text-sm transition-all text-left",
-                      agentSettings.style === style 
-                        ? "border-blue-500 bg-blue-500/5 text-blue-500 font-medium" 
-                        : "border-[var(--border-color)] hover:border-gray-400 text-[var(--text-secondary)]"
-                    )}
-                  >
-                    {style}
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-2 pt-2">
-                <label className="text-xs font-medium text-[var(--text-secondary)]">自定义风格描述</label>
+        {isAdding && (
+          <div className="mb-8 bg-[var(--card-bg)] p-6 rounded-2xl border border-blue-200 dark:border-blue-900/50 shadow-sm space-y-4">
+            <h3 className="font-bold text-sm text-[var(--text-primary)]">
+              {editingId ? '编辑模型配置' : '新增自定义模型接入'}
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">模型显示名称</label>
                 <input 
-                  type="text"
-                  className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="或输入自定义风格..."
-                  value={agentSettings.style}
-                  onChange={e => onUpdateAgentSettings({...agentSettings, style: e.target.value})}
+                  type="text" 
+                  placeholder="如: GPT-4o" 
+                  className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newModel.name}
+                  onChange={e => setNewModel({...newModel, name: e.target.value})}
                 />
               </div>
-
-              <div className="flex items-center gap-3 mb-2 pt-4">
-                <div className="p-2 bg-emerald-500/10 rounded-xl">
-                  <Settings className="w-5 h-5 text-emerald-500" />
-                </div>
-                <h3 className="font-bold text-[var(--text-primary)]">额外指令</h3>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">供应商类型</label>
+                <select 
+                  className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newModel.provider}
+                  onChange={e => {
+                    const provider = e.target.value;
+                    let baseUrl = '';
+                    if (provider === 'OpenAI') baseUrl = 'https://api.openai.com/v1';
+                    else if (provider === 'DeepSeek') baseUrl = 'https://api.deepseek.com';
+                    else if (provider === 'Anthropic') baseUrl = 'https://api.anthropic.com/v1';
+                    else if (provider === 'Local (Ollama)') baseUrl = 'http://localhost:11434/v1';
+                    else if (provider === 'Google') baseUrl = '';
+                    
+                    setNewModel({...newModel, provider, baseUrl});
+                  }}
+                >
+                  <option value="Google">Google Gemini</option>
+                  <option value="OpenAI">OpenAI</option>
+                  <option value="DeepSeek">DeepSeek</option>
+                  <option value="Anthropic">Anthropic</option>
+                  <option value="Local (Ollama)">Local (Ollama)</option>
+                  <option value="Custom">自定义 (OpenAI 兼容中转)</option>
+                </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--text-secondary)]">任何你希望 AI 始终遵循的特定规则</label>
-                <textarea 
-                  className="w-full px-4 py-3 rounded-2xl border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-none"
-                  placeholder="例如：始终使用中文回复；在代码块后附带简短解释..."
-                  value={agentSettings.customInstructions}
-                  onChange={e => onUpdateAgentSettings({...agentSettings, customInstructions: e.target.value})}
+              {newModel.provider !== 'Google' && (
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">接口地址 (Base URL)</label>
+                  <input 
+                    type="text" 
+                    placeholder="例如: https://api.openai-proxy.com/v1" 
+                    className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newModel.baseUrl}
+                    onChange={e => setNewModel({...newModel, baseUrl: e.target.value})}
+                  />
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">API Key</label>
+                <input 
+                  type="password" 
+                  placeholder="sk-..." 
+                  className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newModel.apiKey}
+                  onChange={e => setNewModel({...newModel, apiKey: e.target.value})}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">模型标识符 (Model ID)</label>
+                <input 
+                  type="text" 
+                  placeholder="gpt-4o" 
+                  className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newModel.modelName}
+                  onChange={e => setNewModel({...newModel, modelName: e.target.value})}
                 />
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-xl font-bold text-[var(--text-primary)]">模型列表</h2>
+            <div className="flex gap-2 pt-2">
               <button 
-                onClick={() => setIsAdding(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 transition-colors"
+                onClick={addModel}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium"
               >
-                <Plus className="w-4 h-4" />
-                增加模型
+                {editingId ? '保存修改' : '确认添加'}
               </button>
-            </div>
-
-            {isAdding && (
-              <div className="mb-8 bg-[var(--card-bg)] p-6 rounded-2xl border border-blue-200 dark:border-blue-900/50 shadow-sm space-y-4">
-                <h3 className="font-bold text-sm text-[var(--text-primary)]">新增自定义模型接入</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">模型显示名称</label>
-                    <input 
-                      type="text" 
-                      placeholder="如: GPT-4o" 
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newModel.name}
-                      onChange={e => setNewModel({...newModel, name: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">供应商</label>
-                    <select 
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newModel.provider}
-                      onChange={e => setNewModel({...newModel, provider: e.target.value})}
-                    >
-                      <option>OpenAI</option>
-                      <option>Anthropic</option>
-                      <option>DeepSeek</option>
-                      <option>Local (Ollama)</option>
-                      <option>Other (OpenAI Compatible)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">Base URL</label>
-                    <input 
-                      type="text" 
-                      placeholder="https://api.openai.com/v1" 
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newModel.baseUrl}
-                      onChange={e => setNewModel({...newModel, baseUrl: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">API Key</label>
-                    <input 
-                      type="password" 
-                      placeholder="sk-..." 
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newModel.apiKey}
-                      onChange={e => setNewModel({...newModel, apiKey: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">模型标识符 (Model ID)</label>
-                    <input 
-                      type="text" 
-                      placeholder="gpt-4o" 
-                      className="w-full px-4 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg)] text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newModel.modelName}
-                      onChange={e => setNewModel({...newModel, modelName: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button 
-                    onClick={addModel}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium"
-                  >
-                    确认添加
-                  </button>
-                  <button 
-                    onClick={() => setIsAdding(false)}
-                    className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-medium"
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-4">
-              {models.map(m => (
-                <div key={m.id} className="relative group/card">
-                  <button 
-                    onClick={() => onSelect(m.id)}
-                    className={cn(
-                      "w-full text-left p-6 rounded-2xl border transition-all relative",
-                      selectedId === m.id ? "bg-[var(--card-bg)] border-blue-500 shadow-md ring-1 ring-blue-500" : "bg-[var(--card-bg)]/50 border-[var(--border-color)] hover:bg-[var(--card-bg)]"
-                    )}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-[var(--text-primary)]">{m.name}</h4>
-                        <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">{m.provider}</span>
-                      </div>
-                      <div className="flex gap-2 pr-8">
-                        <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full font-mono uppercase text-gray-500">{m.speed}</span>
-                        <span className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full font-mono uppercase">{m.power}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-[var(--text-secondary)]">{m.desc || `ID: ${m.modelName}`}</p>
-                    {selectedId === m.id && <Check className="absolute top-4 right-4 w-4 h-4 text-blue-500" />}
-                  </button>
-                  {m.id !== 'gemini-3-flash' && m.id !== 'gemini-3.1-pro' && (
-                    <button
-                      onClick={(e) => deleteModel(m.id, e)}
-                      className="absolute top-4 right-12 p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover/card:opacity-100 transition-all"
-                      title="删除模型"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
+              <button 
+                onClick={() => {
+                  setIsAdding(false);
+                  setEditingId(null);
+                }}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-medium"
+              >
+                取消
+              </button>
             </div>
           </div>
         )}
+
+        <div className="grid gap-4">
+          {models.map(m => (
+            <div key={m.id} className="relative group/card">
+              <button 
+                onClick={() => onSelect(m.id)}
+                className={cn(
+                  "w-full text-left p-6 rounded-2xl border transition-all relative",
+                  selectedId === m.id ? "bg-[var(--card-bg)] border-blue-500 shadow-md ring-1 ring-blue-500" : "bg-[var(--card-bg)]/50 border-[var(--border-color)] hover:bg-[var(--card-bg)]"
+                )}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-[var(--text-primary)]">{m.name}</h4>
+                    <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">{m.provider}</span>
+                  </div>
+                  <div className="flex gap-2 pr-16">
+                    <span className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full font-mono uppercase text-gray-500">{m.speed}</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full font-mono uppercase">{m.power}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)]">{m.desc || `ID: ${m.modelName}`}</p>
+                {selectedId === m.id && <Check className="absolute top-4 right-4 w-4 h-4 text-blue-500" />}
+              </button>
+              <div className="absolute top-4 right-12 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-all">
+                <button
+                  onClick={(e) => startEdit(m, e)}
+                  className="p-2 text-gray-400 hover:text-blue-500 transition-all"
+                  title="编辑模型"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                {m.id !== 'gemini-3-flash' && m.id !== 'gemini-3.1-pro' && (
+                  <button
+                    onClick={(e) => deleteModel(m.id, e)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-all"
+                    title="删除模型"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1412,7 +1452,9 @@ export default function App() {
       case 'history':
         return <HistoryView history={history} onLoadChat={loadChat} onDeleteChat={deleteChat} onUpdateTitle={updateChatTitle} />;
       case 'model':
-        return <ModelView models={models} setModels={setModels} selectedId={selectedModelId} onSelect={setSelectedModelId} agentSettings={agentSettings} onUpdateAgentSettings={setAgentSettings} />;
+        return <ModelManagementView models={models} setModels={setModels} selectedId={selectedModelId} onSelect={setSelectedModelId} />;
+      case 'agent':
+        return <AgentConfigView agentSettings={agentSettings} onUpdateAgentSettings={setAgentSettings} />;
       case 'skills':
         return <SkillsView skills={skills} setSkills={setSkills} onNavigateToChat={() => handleSelectItem('new')} />;
       case 'tasks':

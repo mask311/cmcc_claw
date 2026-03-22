@@ -134,12 +134,19 @@ export async function chatWithAI(
     }
   } else {
     // OpenAI Compatible API
-    const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+    let baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+    // Remove trailing slash if present
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
     const apiKey = config.apiKey;
     if (!apiKey) return { text: `${config.provider} API key missing.` };
 
     try {
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const url = baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`;
+      console.log(`Calling ${config.provider} API: ${url} with model: ${config.modelName}`);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,8 +165,25 @@ export async function chatWithAI(
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+        let errorMessage = `API Error: ${response.status}`;
+        try {
+          const errorText = await response.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error?.message || errorData.message || errorMessage;
+          } catch (e) {
+            if (errorText && errorText.length < 300) errorMessage = errorText;
+          }
+          
+          if (response.status === 403) {
+            errorMessage = `权限拒绝 (403): 请检查 API Key 是否正确，或者该 Key 是否有权访问模型 "${config.modelName}"。如果您使用的是中转站，请确认中转地址是否正确。`;
+          } else if (response.status === 404) {
+            errorMessage = `未找到路径 (404): 请检查代理地址 (Base URL) 是否正确。当前请求地址: ${url}`;
+          }
+        } catch (e) {
+          // Fallback
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

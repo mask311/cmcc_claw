@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, MessageSquare, Cpu, Box, Share2, Zap, Clock, ExternalLink, PanelLeftClose, PanelLeftOpen, Plus, ChevronDown, ChevronRight, BarChart3, Book, Trash2 } from 'lucide-react';
+import { Settings, MessageSquare, Cpu, Box, Share2, Zap, Clock, ExternalLink, PanelLeftClose, PanelLeftOpen, Plus, ChevronDown, ChevronRight, BarChart3, Book, Trash2, UserCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -21,7 +21,8 @@ const MENU_ITEMS = [
   { id: 'new', name: '新对话', icon: <Plus className="w-4 h-4" /> },
   { id: 'knowledge', name: '知识库', icon: <Book className="w-4 h-4" /> },
   { id: 'history', name: '历史记录', icon: <Clock className="w-4 h-4" /> },
-  { id: 'model', name: '模型', icon: <Cpu className="w-4 h-4" /> },
+  { id: 'model', name: '模型管理', icon: <Cpu className="w-4 h-4" /> },
+  { id: 'agent', name: '智能体配置', icon: <UserCircle className="w-4 h-4" /> },
   { id: 'skills', name: '技能', icon: <Zap className="w-4 h-4" /> },
   { id: 'tasks', name: '定时任务', icon: <Clock className="w-4 h-4" /> },
   { id: 'usage', name: '用量统计', icon: <BarChart3 className="w-4 h-4" /> },
