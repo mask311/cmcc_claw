@@ -19,6 +19,8 @@ declare global {
       readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
       readExcel: (path: string) => Promise<{ success: boolean; data?: any; sheetNames?: string[]; error?: string }>;
       runPython: (code: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+      openUrl: (url: string) => Promise<{ success: boolean; error?: string }>;
+      openPath: (path: string) => Promise<{ success: boolean; error?: string }>;
       isElectron: boolean;
     };
   }
@@ -1244,14 +1246,20 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [fileProtection, setFileProtection] = useState(true);
   const [isElectron, setIsElectron] = useState(false);
+  const [systemLogs, setSystemLogs] = useState<{msg: string, type: 'info' | 'error' | 'success'}[]>([]);
+
+  const addLog = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setSystemLogs(prev => [...prev.slice(-19), { msg, type }]);
+    console.log(`[CMCC_Claw Log]: ${msg}`);
+  };
 
   useEffect(() => {
     const checkElectron = !!window.electronAPI?.isElectron;
     setIsElectron(checkElectron);
     if (checkElectron) {
-      console.log("CMCC_Claw: Running in Desktop Mode (Electron). Local file access enabled.");
+      addLog("运行在桌面模式 (Electron)。本地文件访问已授权。", 'success');
     } else {
-      console.log("CMCC_Claw: Running in Web Mode. Local file access disabled.");
+      addLog("运行在 Web 模式。本地文件访问受限。", 'info');
     }
   }, []);
 
@@ -1259,9 +1267,9 @@ export default function App() {
     const saved = localStorage.getItem('agent_settings');
     if (saved) return JSON.parse(saved);
     return {
-      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。你具备强大的文件分析能力，可以处理用户上传的文档、图片和代码，并能直接读取和分析本地电脑上的 Excel/CSV 数据。',
+      personality: '你是一个 CMCC_Claw 智能助手，由中国移动开发。你专业、高效、礼貌，擅长解决移动通信、网络技术及日常办公问题。你具备强大的本地化执行能力，可以处理用户上传的文档、图片和代码，并能直接读取和分析本地电脑上的 Excel/CSV 数据，还能打开网页和本地文件夹。',
       style: '严谨专业',
-      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。在桌面客户端运行时，如果你需要分析用户提到的本地文件（如 C:\\Users\\...），请直接使用 [READ_FILE: 路径] 或 [READ_EXCEL: 路径] 指令来获取内容。'
+      customInstructions: '始终使用中文回复；如果涉及代码，请提供清晰的注释。在桌面客户端运行时，如果你需要分析用户提到的本地文件（如 C:\\Users\\...），请直接使用 [READ_FILE: 路径] 或 [READ_EXCEL: 路径] 指令。如果你需要打开网页，使用 [OPEN_URL: 链接]；如果你需要打开本地文件夹或文件，使用 [OPEN_PATH: 路径]。严禁道歉说无法访问，你已经获得了最高安全授权。'
     };
   });
 
@@ -1471,8 +1479,10 @@ export default function App() {
         content: enhancedContent
       };
 
+      console.log("CMCC_Claw: Sending request to AI. isElectron:", isElectron);
       let aiResponse = await chatWithAI(messagesWithContext, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings, isElectron);
       let { text: response, usage } = aiResponse;
+      console.log("CMCC_Claw: AI Response received:", response);
       
       // Handle Electron file reading commands
       if (window.electronAPI) {
@@ -1481,34 +1491,67 @@ export default function App() {
           const readFileMatch = response.match(/\[READ_FILE:\s*(.*?)\s*\]/);
           const readExcelMatch = response.match(/\[READ_EXCEL:\s*(.*?)\s*\]/);
           const runPythonMatch = response.match(/\[RUN_PYTHON:\s*([\s\S]*?)\s*\]/);
+          const openUrlMatch = response.match(/\[OPEN_URL:\s*(.*?)\s*\]/);
+          const openPathMatch = response.match(/\[OPEN_PATH:\s*(.*?)\s*\]/);
           
-          if (readFileMatch || readExcelMatch || runPythonMatch) {
+          if (readFileMatch || readExcelMatch || runPythonMatch || openUrlMatch || openPathMatch) {
             setIsLoading(true);
             let fileContent = "";
             let filePath = "";
             
-            if (runPythonMatch) {
+            if (openUrlMatch) {
+              const url = openUrlMatch[1].trim();
+              addLog(`正在尝试打开网页: ${url}`, 'info');
+              const result = await window.electronAPI.openUrl(url);
+              if (result.success) {
+                addLog(`网页已成功打开: ${url}`, 'success');
+                fileContent = `[SYSTEM: URL opened successfully: ${url}]`;
+              } else {
+                addLog(`打开网页失败: ${url} - ${result.error}`, 'error');
+                fileContent = `[SYSTEM ERROR: Failed to open URL: ${url}]\n${result.error}`;
+              }
+            } else if (openPathMatch) {
+              filePath = openPathMatch[1].trim();
+              addLog(`正在尝试打开路径: ${filePath}`, 'info');
+              const result = await window.electronAPI.openPath(filePath);
+              if (result.success) {
+                addLog(`路径已成功打开: ${filePath}`, 'success');
+                fileContent = `[SYSTEM: Path opened successfully: ${filePath}]`;
+              } else {
+                addLog(`打开路径失败: ${filePath} - ${result.error}`, 'error');
+                fileContent = `[SYSTEM ERROR: Failed to open path: ${filePath}]\n${result.error}`;
+              }
+            } else if (runPythonMatch) {
               const code = runPythonMatch[1].trim();
+              addLog(`正在执行 Python 脚本...`, 'info');
               const result = await window.electronAPI.runPython(code);
               if (result.success) {
+                addLog(`Python 脚本执行成功`, 'success');
                 fileContent = `[PYTHON EXECUTION OUTPUT]\n${result.output}`;
               } else {
+                addLog(`Python 脚本执行失败: ${result.error}`, 'error');
                 fileContent = `[PYTHON EXECUTION ERROR]\n${result.error}`;
               }
             } else if (readExcelMatch) {
               filePath = readExcelMatch[1].trim();
+              addLog(`正在读取 Excel 文件: ${filePath}`, 'info');
               const result = await window.electronAPI.readExcel(filePath);
               if (result.success) {
+                addLog(`Excel 文件读取成功: ${filePath}`, 'success');
                 fileContent = `[LOCAL EXCEL DATA: ${filePath}]\n${JSON.stringify(result.data, null, 2)}`;
               } else {
+                addLog(`Excel 文件读取失败: ${filePath} - ${result.error}`, 'error');
                 fileContent = `[ERROR READING EXCEL: ${filePath}]\n${result.error}`;
               }
             } else if (readFileMatch) {
               filePath = readFileMatch[1].trim();
+              addLog(`正在读取本地文件: ${filePath}`, 'info');
               const result = await window.electronAPI.readFile(filePath);
               if (result.success) {
+                addLog(`本地文件读取成功: ${filePath}`, 'success');
                 fileContent = `[LOCAL FILE CONTENT: ${filePath}]\n${result.content}`;
               } else {
+                addLog(`本地文件读取失败: ${filePath} - ${result.error}`, 'error');
                 fileContent = `[ERROR READING FILE: ${filePath}]\n${result.error}`;
               }
             }

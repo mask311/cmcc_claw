@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, MenuItem, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -96,7 +96,7 @@ ipcMain.handle('run-python', async (event, code) => {
     
     exec(command, (error, stdout, stderr) => {
       // Clean up temp file
-      try { fs.unlinkSync(tempFile); } catch (e) {}
+      try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch (e) {}
       
       if (error) {
         resolve({ success: false, error: stderr || error.message });
@@ -105,6 +105,25 @@ ipcMain.handle('run-python', async (event, code) => {
       }
     });
   });
+});
+
+ipcMain.handle('open-url', async (event, url) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('open-path', async (event, filePath) => {
+  try {
+    const normalizedPath = path.normalize(filePath);
+    await shell.openPath(normalizedPath);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 app.whenReady().then(() => {
