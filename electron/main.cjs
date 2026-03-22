@@ -1,7 +1,12 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const XLSX = require('xlsx');
+let XLSX;
+try {
+  XLSX = require('xlsx');
+} catch (e) {
+  console.error('xlsx module not found, Excel support will be disabled.');
+}
 const isDev = process.env.NODE_ENV === 'development';
 
 function createWindow() {
@@ -36,6 +41,9 @@ ipcMain.handle('read-file', async (event, filePath) => {
 
 ipcMain.handle('read-excel', async (event, filePath) => {
   try {
+    if (!XLSX) {
+      throw new Error('Excel parsing module (xlsx) is not installed. Please run "npm install xlsx" and rebuild the app.');
+    }
     const workbook = XLSX.readFile(filePath);
     const sheetNames = workbook.SheetNames;
     const data = {};
