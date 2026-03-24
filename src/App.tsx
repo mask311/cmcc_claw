@@ -1496,92 +1496,101 @@ export default function App() {
       console.log("CMCC_Claw: AI Response received:", response);
       
       // Handle Electron file reading commands
+      let currentHistory = [...messagesWithContext];
       if (window.electronAPI) {
         let iterations = 0;
-        while (iterations < 3) { // Limit to 3 recursive reads to prevent loops
-          const readFileMatch = response.match(/\[READ_FILE:\s*(.*?)\s*\]/);
-          const readExcelMatch = response.match(/\[READ_EXCEL:\s*(.*?)\s*\]/);
-          const runPythonMatch = response.match(/\[RUN_PYTHON:\s*([\s\S]*?)\s*\]/);
-          const openUrlMatch = response.match(/\[OPEN_URL:\s*(.*?)\s*\]/);
-          const openPathMatch = response.match(/\[OPEN_PATH:\s*(.*?)\s*\]/);
-          
-          if (readFileMatch || readExcelMatch || runPythonMatch || openUrlMatch || openPathMatch) {
+        while (iterations < 5) { // Increased limit for more complex tasks
+          // Find all tags in the current response
+          const tags = [
+            ...Array.from(response.matchAll(/\[READ_FILE:\s*(.*?)\s*\]/gi)).map(m => ({ type: 'READ_FILE', content: m[1], full: m[0] })),
+            ...Array.from(response.matchAll(/\[READ_EXCEL:\s*(.*?)\s*\]/gi)).map(m => ({ type: 'READ_EXCEL', content: m[1], full: m[0] })),
+            ...Array.from(response.matchAll(/\[RUN_PYTHON:\s*([\s\S]*?)\s*\]/gi)).map(m => ({ type: 'RUN_PYTHON', content: m[1], full: m[0] })),
+            ...Array.from(response.matchAll(/\[OPEN_URL:\s*(.*?)\s*\]/gi)).map(m => ({ type: 'OPEN_URL', content: m[1], full: m[0] })),
+            ...Array.from(response.matchAll(/\[OPEN_PATH:\s*(.*?)\s*\]/gi)).map(m => ({ type: 'OPEN_PATH', content: m[1], full: m[0] }))
+          ].sort((a, b) => response.indexOf(a.full) - response.indexOf(b.full));
+
+          if (tags.length > 0) {
             setIsLoading(true);
-            let fileContent = "";
-            let filePath = "";
             
-            if (openUrlMatch) {
-              const url = openUrlMatch[1].trim();
-              addLog(`正在尝试打开网页: ${url}`, 'info');
-              const result = await window.electronAPI.openUrl(url);
-              if (result.success) {
-                addLog(`网页已成功打开: ${url}`, 'success');
-                fileContent = `[SYSTEM: URL opened successfully: ${url}]`;
-              } else {
-                addLog(`打开网页失败: ${url} - ${result.error}`, 'error');
-                fileContent = `[SYSTEM ERROR: Failed to open URL: ${url}]\n${result.error}`;
+            // Add the AI's intermediate response to history so user sees it
+            const intermediateAI: Message = { role: 'model', content: response, timestamp: Date.now() };
+            currentHistory.push(intermediateAI);
+            setMessages([...currentHistory]);
+
+            let combinedResults = "";
+            for (const tag of tags) {
+              let resultText = "";
+              if (tag.type === 'OPEN_URL') {
+                const url = tag.content.trim();
+                addLog(`正在尝试打开网页: ${url}`, 'info');
+                const result = await window.electronAPI.openUrl(url);
+                resultText = result.success 
+                  ? `[SYSTEM: URL opened successfully: ${url}]` 
+                  : `[SYSTEM ERROR: Failed to open URL: ${url}]\n${result.error}`;
+                if (result.success) addLog(`网页已成功打开: ${url}`, 'success');
+                else addLog(`打开网页失败: ${url}`, 'error');
+              } else if (tag.type === 'OPEN_PATH') {
+                const filePath = tag.content.trim();
+                addLog(`正在尝试打开路径: ${filePath}`, 'info');
+                const result = await window.electronAPI.openPath(filePath);
+                resultText = result.success 
+                  ? `[SYSTEM: Path opened successfully: ${filePath}]` 
+                  : `[SYSTEM ERROR: Failed to open path: ${filePath}]\n${result.error}`;
+                if (result.success) addLog(`路径已成功打开: ${filePath}`, 'success');
+                else addLog(`打开路径失败: ${filePath}`, 'error');
+              } else if (tag.type === 'RUN_PYTHON') {
+                const code = tag.content.trim();
+                addLog(`正在执行 Python 脚本...`, 'info');
+                const result = await window.electronAPI.runPython(code);
+                resultText = result.success 
+                  ? `[PYTHON EXECUTION OUTPUT]\n${result.output}` 
+                  : `[PYTHON EXECUTION ERROR]\n${result.error}`;
+                if (result.success) addLog(`Python 脚本执行成功`, 'success');
+                else addLog(`Python 脚本执行失败`, 'error');
+              } else if (tag.type === 'READ_EXCEL') {
+                const filePath = tag.content.trim();
+                addLog(`正在读取 Excel 文件: ${filePath}`, 'info');
+                const result = await window.electronAPI.readExcel(filePath);
+                resultText = result.success 
+                  ? `[LOCAL EXCEL DATA: ${filePath}]\n${JSON.stringify(result.data, null, 2)}` 
+                  : `[ERROR READING EXCEL: ${filePath}]\n${result.error}`;
+                if (result.success) addLog(`Excel 文件读取成功: ${filePath}`, 'success');
+                else addLog(`Excel 文件读取失败: ${filePath}`, 'error');
+              } else if (tag.type === 'READ_FILE') {
+                const filePath = tag.content.trim();
+                addLog(`正在读取本地文件: ${filePath}`, 'info');
+                const result = await window.electronAPI.readFile(filePath);
+                resultText = result.success 
+                  ? `[LOCAL FILE CONTENT: ${filePath}]\n${result.content}` 
+                  : `[ERROR READING FILE: ${filePath}]\n${result.error}`;
+                if (result.success) addLog(`本地文件读取成功: ${filePath}`, 'success');
+                else addLog(`本地文件读取失败: ${filePath}`, 'error');
               }
-            } else if (openPathMatch) {
-              filePath = openPathMatch[1].trim();
-              addLog(`正在尝试打开路径: ${filePath}`, 'info');
-              const result = await window.electronAPI.openPath(filePath);
-              if (result.success) {
-                addLog(`路径已成功打开: ${filePath}`, 'success');
-                fileContent = `[SYSTEM: Path opened successfully: ${filePath}]`;
-              } else {
-                addLog(`打开路径失败: ${filePath} - ${result.error}`, 'error');
-                fileContent = `[SYSTEM ERROR: Failed to open path: ${filePath}]\n${result.error}`;
-              }
-            } else if (runPythonMatch) {
-              const code = runPythonMatch[1].trim();
-              addLog(`正在执行 Python 脚本...`, 'info');
-              const result = await window.electronAPI.runPython(code);
-              if (result.success) {
-                addLog(`Python 脚本执行成功`, 'success');
-                fileContent = `[PYTHON EXECUTION OUTPUT]\n${result.output}`;
-              } else {
-                addLog(`Python 脚本执行失败: ${result.error}`, 'error');
-                fileContent = `[PYTHON EXECUTION ERROR]\n${result.error}`;
-              }
-            } else if (readExcelMatch) {
-              filePath = readExcelMatch[1].trim();
-              addLog(`正在读取 Excel 文件: ${filePath}`, 'info');
-              const result = await window.electronAPI.readExcel(filePath);
-              if (result.success) {
-                addLog(`Excel 文件读取成功: ${filePath}`, 'success');
-                fileContent = `[LOCAL EXCEL DATA: ${filePath}]\n${JSON.stringify(result.data, null, 2)}`;
-              } else {
-                addLog(`Excel 文件读取失败: ${filePath} - ${result.error}`, 'error');
-                fileContent = `[ERROR READING EXCEL: ${filePath}]\n${result.error}`;
-              }
-            } else if (readFileMatch) {
-              filePath = readFileMatch[1].trim();
-              addLog(`正在读取本地文件: ${filePath}`, 'info');
-              const result = await window.electronAPI.readFile(filePath);
-              if (result.success) {
-                addLog(`本地文件读取成功: ${filePath}`, 'success');
-                fileContent = `[LOCAL FILE CONTENT: ${filePath}]\n${result.content}`;
-              } else {
-                addLog(`本地文件读取失败: ${filePath} - ${result.error}`, 'error');
-                fileContent = `[ERROR READING FILE: ${filePath}]\n${result.error}`;
-              }
+              combinedResults += resultText + "\n\n";
             }
 
-            // Send file content back to AI
-            const hiddenMessage: Message = {
-              role: 'user' as const,
-              content: fileContent,
+            // Add the execution results to history
+            const resultMessage: Message = {
+              role: 'system',
+              content: combinedResults.trim(),
               timestamp: Date.now()
             };
+            currentHistory.push(resultMessage);
+            setMessages([...currentHistory]);
             
-            const messagesWithFile: Message[] = [...messagesWithContext, { role: 'model' as const, content: response, timestamp: Date.now() }, hiddenMessage];
-            aiResponse = await chatWithAI(messagesWithFile, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings, isElectron);
+            aiResponse = await chatWithAI(currentHistory, selectedModel as AIModelConfig, fileProtection, enabledSkills, agentSettings, isElectron);
             response = aiResponse.text;
             usage = aiResponse.usage;
             iterations++;
           } else {
             break;
           }
+        }
+      } else {
+        // Check if AI tried to use tags but we are not in Electron
+        const hasTags = response.match(/\[(READ_FILE|READ_EXCEL|RUN_PYTHON|OPEN_URL|OPEN_PATH):/i);
+        if (hasTags) {
+          addLog("检测到智能助手尝试执行本地指令，但当前未运行在桌面模式 (Electron)。指令将无法执行。", 'error');
         }
       }
 
@@ -1596,12 +1605,12 @@ export default function App() {
       setUsageLogs(prev => [...prev, newLog]);
 
       const aiMessage: Message = {
-        role: 'model',
+        role: 'model' as const,
         content: response,
         timestamp: Date.now(),
         usage: usage
       };
-      const finalMessages = [...newMessages, aiMessage];
+      const finalMessages = [...currentHistory, aiMessage];
       setMessages(finalMessages);
       
       // Check for skill generation in response

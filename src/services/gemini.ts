@@ -30,7 +30,7 @@ export interface Attachment {
 }
 
 export interface Message {
-  role: "user" | "model";
+  role: "user" | "model" | "system";
   content: string;
   timestamp: number;
   attachments?: Attachment[];
@@ -95,21 +95,22 @@ ${electronStatus}
 
 ### CRITICAL OPERATIONAL DIRECTIVES (DESKTOP MODE)
 1. **NO APOLOGIES**: If running in DESKTOP_CLIENT_AUTHORIZED mode, NEVER say "I cannot access your files" or "Due to security restrictions...". This is factually incorrect in this environment.
-2. **AUTOMATIC TOOL TRIGGER**: Use these tags immediately when appropriate:
+2. **AUTOMATIC TOOL TRIGGER**: Use these tags immediately when appropriate. You can use multiple tags in one response to perform multiple actions.
    - \`[READ_FILE: path]\`: Read text files.
    - \`[READ_EXCEL: path]\`: Read Excel/CSV files.
-   - \`[RUN_PYTHON: code]\`: Execute Python for data analysis.
+   - \`[RUN_PYTHON: code]\`: Execute Python for data analysis. **IMPORTANT**: Ensure Python code is syntactically correct. Use \`import os, glob\` instead of \`import os import glob\`.
    - \`[OPEN_URL: url]\`: Open a website in the default browser.
    - \`[OPEN_PATH: path]\`: Open a file or folder in the system explorer.
 
 ### EXAMPLES (DESKTOP MODE)
 - User: "Open google.com" -> Response: "Opening Google... [OPEN_URL: https://google.com]"
-- User: "Show me my downloads folder" -> Response: "Opening Downloads... [OPEN_PATH: C:\\Users\\User\\Downloads]"
-- User: "Read C:\\test.txt" -> Response: "Reading file... [READ_FILE: C:\\test.txt]"
+- User: "Show me my downloads folder" -> Response: "Opening Downloads... [OPEN_PATH: C:\Users\User\Downloads]"
+- User: "Read C:\test.txt" -> Response: "Reading file... [READ_FILE: C:\test.txt]"
 - User: "Analyze data.xlsx" -> Response: "Analyzing Excel... [READ_EXCEL: data.xlsx]"
+- User: "Compare two excel files" -> Response: "I will list the files first to find the exact names. [RUN_PYTHON: import os; print(os.listdir('C:/data'))]"
 
 3. **READ-ONLY PERMISSION**: You have full permission to READ any file. You are only restricted from DELETING or OVERWRITING files.
-4. **PYTHON POWER**: Use \`[RUN_PYTHON: code]\` for all data analysis tasks.
+4. **PYTHON POWER**: Use \`[RUN_PYTHON: code]\` for all data analysis tasks. You can use it to list directories, find files, and process data.
 
 ### GENERAL RULES
 - For Excel/CSV files, always prefer \`[READ_EXCEL: path]\`.
@@ -145,7 +146,10 @@ ${electronStatus}
             }
           });
         }
-        return { role: m.role, parts };
+        return { 
+          role: m.role === 'system' ? 'user' : m.role, 
+          parts 
+        };
       });
       const lastMessage = messages[messages.length - 1];
       const lastMessageParts: any[] = [{ text: lastMessage.content }];

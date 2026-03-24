@@ -31,6 +31,24 @@ function MessageBubble({ msg, idx, language }: MessageBubbleProps) {
     }
   };
 
+  if (msg.role === 'system') {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-center my-4"
+      >
+        <div className="max-w-[90%] p-3 bg-zinc-900/50 rounded-xl border border-zinc-800 font-mono text-[10px] text-zinc-400 overflow-x-auto">
+          <div className="flex items-center gap-2 mb-2 text-zinc-500 border-b border-zinc-800 pb-1">
+            <Terminal size={10} />
+            <span>Execution Result / 系统执行结果</span>
+          </div>
+          <pre className="whitespace-pre-wrap">{msg.content}</pre>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
