@@ -32,6 +32,7 @@ export function Sidebar({ activeItem, onSelectItem, recentHistory = [], onLoadCh
     { id: 'skills', name: t.skills, icon: <Zap className="w-4 h-4" /> },
     { id: 'tasks', name: t.tasks, icon: <Clock className="w-4 h-4" /> },
     { id: 'usage', name: t.usage, icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'logs', name: language === 'English' ? 'System Logs' : '系统日志', icon: <Terminal className="w-4 h-4" /> },
   ];
 
   return (

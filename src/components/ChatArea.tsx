@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Loader2, User, Bot, Paperclip, RefreshCw, Brain, Plus, Copy, Check } from 'lucide-react';
+import { Send, Loader2, User, Bot, Paperclip, RefreshCw, Brain, Plus, Copy, Check, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, Attachment } from '../services/gemini';
 import { clsx, type ClassValue } from 'clsx';
@@ -123,6 +123,7 @@ interface ChatAreaProps {
   onSelectModel: (id: string) => void;
   language?: string;
   isElectron?: boolean;
+  onViewLogs?: () => void;
 }
 
 export function ChatArea({ 
@@ -135,7 +136,8 @@ export function ChatArea({
   selectedModelId,
   onSelectModel,
   language = '简体中文',
-  isElectron = false
+  isElectron = false,
+  onViewLogs
 }: ChatAreaProps) {
   const [input, setInput] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -275,6 +277,16 @@ export function ChatArea({
               <Bot className="w-3.5 h-3.5 text-blue-500" />
               <span>{language === 'English' ? 'Model' : '当前模型'}: <span className="font-bold text-[var(--text-primary)]">{selectedModel?.name}</span></span>
             </button>
+            
+            {isElectron && onViewLogs && (
+              <button 
+                onClick={onViewLogs}
+                className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 text-[10px] text-emerald-500 hover:bg-emerald-500/20 transition-colors ml-2"
+              >
+                <Terminal className="w-3 h-3" />
+                <span>{language === 'English' ? 'View Logs' : '查看日志'}</span>
+              </button>
+            )}
 
             <AnimatePresence>
               {showModelSelector && (
@@ -342,6 +354,32 @@ export function ChatArea({
               <button className="pill-button text-[var(--text-primary)]">{language === 'English' ? 'Continuous Execution' : '持续执行'}</button>
               <button className="pill-button text-[var(--text-primary)]">{language === 'English' ? 'Multi-Agent Parallel' : '多智能体并行'}</button>
             </div>
+            {isElectron && (
+              <div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl max-w-md">
+                <p className="text-[10px] text-emerald-500 font-bold uppercase mb-2 flex items-center gap-1">
+                  <Terminal className="w-3 h-3" />
+                  {language === 'English' ? 'Desktop Capabilities Enabled' : '桌面端增强功能已启用'}
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-[var(--text-secondary)]">
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                    {language === 'English' ? 'Local Excel Analysis' : '本地 Excel 分析'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                    {language === 'English' ? 'System File Access' : '系统文件访问'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                    {language === 'English' ? 'Open URLs & Folders' : '打开网页与文件夹'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                    {language === 'English' ? 'Python Data Processing' : 'Python 数据处理'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-8">

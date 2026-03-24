@@ -92,18 +92,34 @@ ipcMain.handle('run-python', async (event, code) => {
     fs.writeFileSync(tempFile, code);
     
     // Try 'python' then 'python3'
-    const command = process.platform === 'win32' ? `python "${tempFile}"` : `python3 "${tempFile}"`;
-    
-    exec(command, (error, stdout, stderr) => {
-      // Clean up temp file
-      try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch (e) {}
-      
-      if (error) {
-        resolve({ success: false, error: stderr || error.message });
-      } else {
-        resolve({ success: true, output: stdout });
+    const tryPython = (cmd) => {
+      return new Promise((res) => {
+        exec(`${cmd} --version`, (err) => res(!err));
+      });
+    };
+
+    const run = async () => {
+      let pythonCmd = 'python';
+      const hasPython = await tryPython('python');
+      if (!hasPython) {
+        const hasPython3 = await tryPython('python3');
+        if (hasPython3) pythonCmd = 'python3';
       }
-    });
+
+      const command = `${pythonCmd} "${tempFile}"`;
+      exec(command, (error, stdout, stderr) => {
+        // Clean up temp file
+        try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch (e) {}
+        
+        if (error) {
+          resolve({ success: false, error: stderr || error.message });
+        } else {
+          resolve({ success: true, output: stdout });
+        }
+      });
+    };
+
+    run();
   });
 });
 

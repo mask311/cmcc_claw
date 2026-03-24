@@ -1276,6 +1276,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('agent_settings', JSON.stringify(agentSettings));
   }, [agentSettings]);
+
+  // Migration: Ensure desktop instructions are present if in Electron
+  useEffect(() => {
+    if (isElectron && !agentSettings.customInstructions.includes('[OPEN_URL')) {
+      setAgentSettings(prev => ({
+        ...prev,
+        customInstructions: prev.customInstructions + '\n在桌面端运行时，你可以使用 [OPEN_URL: 链接] 打开网页，[OPEN_PATH: 路径] 打开文件夹，[READ_FILE: 路径] 读取文件，[READ_EXCEL: 路径] 读取 Excel。严禁道歉说无法访问。'
+      }));
+      addLog("已自动更新智能助手指令以支持桌面端增强功能。", 'success');
+    }
+  }, [isElectron]);
   
   const [history, setHistory] = useState<ChatHistory[]>(() => {
     const saved = localStorage.getItem('chat_history');
@@ -1724,6 +1735,7 @@ export default function App() {
             onSelectModel={setSelectedModelId}
             language={language}
             isElectron={isElectron}
+            onViewLogs={() => setActiveItem('logs')}
           />
         );
       case 'knowledge':
@@ -1740,6 +1752,8 @@ export default function App() {
         return <TasksView tasks={tasks} setTasks={setTasks} />;
       case 'usage':
         return <UsageView logs={usageLogs} />;
+      case 'logs':
+        return <SystemLogsView logs={systemLogs} onClear={() => setSystemLogs([])} />;
       case 'settings':
         return (
           <SettingsView 
@@ -1766,6 +1780,7 @@ export default function App() {
             selectedModelId={selectedModelId}
             onSelectModel={setSelectedModelId}
             isElectron={isElectron}
+            onViewLogs={() => setActiveItem('logs')}
           />
         );
     }
@@ -1795,6 +1810,85 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0">
         {renderContent()}
       </main>
+    </div>
+  );
+}
+
+function SystemLogsView({ logs, onClear }: { logs: {msg: string, type: string}[], onClear: () => void }) {
+  const runTest = async (type: string) => {
+    if (!window.electronAPI) {
+      alert("Not in Electron environment!");
+      return;
+    }
+    
+    try {
+      let result;
+      switch (type) {
+        case 'url':
+          result = await window.electronAPI.openUrl('https://www.baidu.com');
+          break;
+        case 'path':
+          result = await window.electronAPI.openPath('.');
+          break;
+        case 'python':
+          result = await window.electronAPI.runPython('print("Hello from Python!")');
+          break;
+        case 'excel':
+          alert("Please provide a valid excel path in code for testing.");
+          return;
+      }
+      console.log(`Test ${type} result:`, result);
+      alert(`Test ${type} ${result.success ? 'Success' : 'Failed: ' + result.error}`);
+    } catch (e: any) {
+      alert(`Test ${type} Error: ${e.message}`);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-[var(--bg)] p-8 overflow-hidden">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-serif text-[var(--text-primary)]">系统日志</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">监控桌面端执行状态与本地化操作</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-[var(--border-color)] mr-4">
+            <button onClick={() => runTest('url')} className="px-3 py-1 text-[10px] hover:bg-blue-500/10 rounded transition-colors">测试网页</button>
+            <button onClick={() => runTest('path')} className="px-3 py-1 text-[10px] hover:bg-emerald-500/10 rounded transition-colors">测试路径</button>
+            <button onClick={() => runTest('python')} className="px-3 py-1 text-[10px] hover:bg-purple-500/10 rounded transition-colors">测试Python</button>
+          </div>
+          <button 
+            onClick={onClear}
+            className="px-4 py-2 text-xs font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-red-500/20"
+          >
+            清除日志
+          </button>
+        </div>
+      </div>
+      
+      <div className="flex-1 bg-black/90 rounded-2xl p-6 font-mono text-xs overflow-y-auto custom-scrollbar shadow-2xl border border-white/5">
+        {logs.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-gray-600 italic">
+            暂无系统日志...
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {logs.map((log, i) => (
+              <div key={i} className="flex gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                <span className="text-gray-500 shrink-0">[{new Date().toLocaleTimeString()}]</span>
+                <span className={cn(
+                  "break-all",
+                  log.type === 'error' ? "text-red-400" : 
+                  log.type === 'success' ? "text-emerald-400" : 
+                  "text-blue-400"
+                )}>
+                  {log.type === 'error' ? '✖' : log.type === 'success' ? '✔' : 'ℹ'} {log.msg}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
